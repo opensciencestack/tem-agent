@@ -83,6 +83,9 @@ class TEMCapabilities:
         elif name == "set_acceleration_voltage":
             return self._set_acceleration_voltage(params)
 
+        elif name == "set_optical_mode":
+            return self._set_optical_mode(params)
+
         return {"error": f"Unknown TEM capability: '{name}'"}, True
 
     # -------------------------------------------------------------------------
@@ -98,7 +101,7 @@ class TEMCapabilities:
                 "voltage_kv": float(state["voltage_kv"]),
                 "beam_blanked": bool(state["beam_blanked"]),
                 "column_valve_open": bool(state["column_valve_open"]),
-                "optical_mode": str(state["detector"]["type"]),
+                "optical_mode": str(state.get("optical_mode", state["detector"].get("type"))),
                 "stage_position": state.get("stage_position", {})
             }, False
         except Exception as e:
@@ -362,3 +365,20 @@ class TEMCapabilities:
             }, False
         except Exception as e:
             return {"error": f"Failed to set acceleration voltage: {e}"}, True
+
+    def _set_optical_mode(self, params):
+        mode = params.get("mode")
+        if mode is None:
+            return {"error": "Missing parameter 'mode'."}, True
+        if mode not in ("Stem", "Tem"):
+            return {"error": f"Parameter 'mode' must be 'Stem' or 'Tem', got '{mode}'."}, True
+        try:
+            self.connector.set_optical_mode(mode)
+            state = self.connector.get_microscope_state()
+            return {
+                "requested_optical_mode": mode,
+                "actual_optical_mode": str(state.get("optical_mode", state["detector"].get("type"))),
+                "success": True
+            }, False
+        except Exception as e:
+            return {"error": f"Failed to set optical mode: {e}"}, True

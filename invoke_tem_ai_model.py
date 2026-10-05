@@ -49,9 +49,12 @@ def build_policy(model_name: str):
     elif model_name == "gemini":
         from policies.gemini_policy import GeminiTEMPolicy
         return GeminiTEMPolicy()
+    elif model_name == "rule":
+        from policies.rule_policy import RuleTEMPolicy
+        return RuleTEMPolicy()
     else:
         raise ValueError(
-            f"Unknown model '{model_name}'. Supported values: claude, gemini."
+            f"Unknown model '{model_name}'. Supported values: claude, gemini, rule."
         )
 
 
@@ -122,8 +125,9 @@ def main():
         description="Invoke the TEM AI Agent with a chosen model backend."
     )
     parser.add_argument(
-        "--model", choices=["claude", "gemini"], default="claude",
-        help="AI model backend to use (default: claude)."
+        "--model", choices=["claude", "gemini", "rule"], default="claude",
+        help="AI model backend to use (default: claude). 'rule' is the deterministic, "
+             "model-free policy: no API key, no network call."
     )
     parser.add_argument(
         "--goal", type=str, default=None,

@@ -1,0 +1,536 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>TEM Agent demo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  /* House look, from docs/skills/writeup/SHELL.html: mono uppercase section
+     labels with a blue bar, bordered cards, chips, no rounded corners, no
+     shadows, light theme only. The extras at the end of this block are the
+     demo's own controls and live output. */
+  :root{
+    --bg:#ffffff; --bg-elevated:#fafafa;
+    --line:#e5e5e5; --line-strong:#d4d4d4;
+    --ink:#171717; --ink-2:#525252; --ink-3:#a3a3a3; --mono-ink:#737373;
+    --blue:#1d4ed8; --blue-light:#eff6ff; --blue-dark:#1e40af;
+    --low:#b3392f; --low-soft:#fdf1f0;
+    --mid:#a36a1c; --mid-soft:#fdf6ea;
+    --high:#1f7a4d; --high-soft:#edf7f1;
+    --sans:Manrope,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font:16px/1.6 var(--sans);
+       padding:0 2rem 6rem;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:64rem;margin:0 auto}
+  a{color:var(--blue)}
+  p{color:var(--ink-2)}
+  strong{color:var(--ink);font-weight:700}
+  code{font-family:var(--mono);font-size:.85em;background:var(--blue-light);
+       color:var(--blue-dark);padding:.1em .35em}
+  pre{background:var(--bg-elevated);border:1px solid var(--line);
+      padding:.85rem 1.1rem;overflow-x:auto;line-height:1.5}
+  pre code{background:none;color:var(--ink);padding:0;font-size:.82rem}
+  header{padding:4.5rem 0 2.8rem;border-bottom:1px solid var(--line)}
+  .kicker{font-family:var(--mono);font-size:.72rem;letter-spacing:.08em;
+          text-transform:uppercase;color:var(--mono-ink);margin:0 0 1rem;
+          display:flex;align-items:center;gap:.75rem}
+  .kicker::before{content:"";width:2rem;height:3px;background:var(--blue)}
+  h1{font-weight:800;letter-spacing:-.03em;line-height:1.15;
+     font-size:clamp(1.5rem,2.8vw,2.2rem);margin:0;max-width:38ch;text-wrap:balance}
+  .headmeta{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1.4rem}
+  .chip{font-family:var(--mono);font-size:.72rem;border:1px solid var(--line-strong);
+        background:var(--bg);padding:.3rem .75rem;color:var(--ink-2)}
+  .chip strong{color:var(--ink);font-weight:600}
+  section{padding:3rem 0 0}
+  h2.label{display:flex;align-items:center;gap:.75rem;margin:0 0 1.4rem;
+     font-family:var(--mono);font-size:.72rem;font-weight:600;
+     letter-spacing:.08em;text-transform:uppercase;color:var(--mono-ink)}
+  h2.label::before{content:"";width:2rem;height:3px;background:var(--blue)}
+  h3{margin:1.6rem 0 .5rem;font-size:1.02rem;font-weight:700;letter-spacing:-.01em}
+  .card{background:var(--bg);border:1px solid var(--line);
+        padding:1.2rem 1.4rem;margin:0 0 .8rem}
+  .card h3{margin:0 0 .35rem}
+  .card p{margin:.2rem 0;max-width:75ch;font-size:.94rem}
+  .card .file{font-family:var(--mono);font-size:.72rem;color:var(--mono-ink);
+        letter-spacing:.03em;margin:0 0 .4rem;display:block}
+  .tag{font-family:var(--mono);font-size:.66rem;letter-spacing:.06em;
+       text-transform:uppercase;padding:.22rem .6rem;flex-shrink:0}
+  .tag.built{background:var(--high-soft);color:var(--high)}
+  .tag.planned{background:var(--mid-soft);color:var(--mid)}
+  .tag.blue{background:var(--blue-light);color:var(--blue-dark)}
+  .note{background:var(--mid-soft);border-left:3px solid var(--mid);
+        padding:.85rem 1.1rem;margin:1rem 0;font-size:.9rem;color:var(--ink)}
+  .cmd{display:flex;gap:.5rem;align-items:center;margin:.7rem 0}
+  .cmd code{flex:1 1 auto;background:var(--bg-elevated);border:1px solid var(--line);
+        color:var(--ink);padding:.5rem .8rem;font-size:.8rem;overflow-wrap:anywhere}
+  .btn{background:var(--bg);border:1px solid var(--line-strong);
+       padding:.45rem .8rem;cursor:pointer;font:600 .72rem var(--mono);
+       letter-spacing:.04em;text-transform:uppercase;color:var(--ink-2)}
+  .btn:hover{border-color:var(--blue);color:var(--blue)}
+  .btn:disabled{opacity:.45;cursor:not-allowed;border-color:var(--line-strong);color:var(--ink-3)}
+  .btn.primary{border-color:var(--blue);color:var(--blue)}
+  details.fold{background:var(--bg);border:1px solid var(--line);margin:0 0 .55rem}
+  details.fold summary{cursor:pointer;padding:.9rem 1.2rem;font-size:.95rem;
+        color:var(--ink);list-style:none;display:flex;gap:.8rem;align-items:baseline}
+  details.fold summary::-webkit-details-marker{display:none}
+  details.fold summary::before{content:"+";font-family:var(--mono);font-weight:700;
+        color:var(--blue);min-width:1rem}
+  details.fold[open] summary::before{content:"–"}
+  details.fold .fold-body{padding:0 1.2rem 1rem 3rem;font-size:.92rem;color:var(--ink-2)}
+  .tablewrap{overflow-x:auto;border:1px solid var(--line);margin:.7rem 0}
+  table{border-collapse:collapse;width:100%;font-size:.9rem;background:var(--bg)}
+  th,td{text-align:left;padding:.65rem .9rem;border-bottom:1px solid var(--line);vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  th{font-family:var(--mono);font-size:.66rem;letter-spacing:.08em;
+     text-transform:uppercase;color:var(--mono-ink);font-weight:600}
+  .foot{border-top:1px solid var(--line);padding-top:1.1rem;margin-top:3.5rem;
+        font-size:.76rem;color:var(--ink-3);font-family:var(--mono);line-height:1.6}
+
+  /* ---------- demo controls ---------- */
+  .loops{display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:.6rem;margin:0 0 1rem}
+  .loop{background:var(--bg);border:1px solid var(--line);padding:.9rem 1.1rem;cursor:pointer;
+        display:block;position:relative}
+  .loop:hover{border-color:var(--line-strong)}
+  .loop input{position:absolute;opacity:0;pointer-events:none}
+  .loop.sel{border-color:var(--blue);background:var(--blue-light)}
+  .loop h3{margin:0 0 .3rem;font-size:.95rem}
+  .loop p{margin:0;font-size:.82rem;color:var(--ink-2);line-height:1.5}
+  .loop .tag{margin-top:.55rem;display:inline-block}
+  .fields{display:flex;flex-wrap:wrap;gap:1.2rem;align-items:flex-end;margin:0 0 1rem}
+  .field{display:flex;flex-direction:column;gap:.25rem}
+  .field span{font-family:var(--mono);font-size:.66rem;letter-spacing:.06em;
+        text-transform:uppercase;color:var(--mono-ink)}
+  .field input[type=text],.field input[type=number]{font:400 .85rem var(--mono);
+        padding:.4rem .6rem;border:1px solid var(--line-strong);background:var(--bg);color:var(--ink);width:12rem}
+  .field.check{flex-direction:row;align-items:center;gap:.5rem;
+        font-family:var(--mono);font-size:.72rem;color:var(--ink-2);text-transform:uppercase;
+        letter-spacing:.04em;padding-bottom:.35rem}
+  .runbar{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap}
+  .status{font-family:var(--mono);font-size:.7rem;letter-spacing:.05em;
+        text-transform:uppercase;color:var(--mono-ink)}
+  .chartwrap{border:1px solid var(--line);background:var(--bg);padding:.8rem;margin:.8rem 0 0}
+  canvas{width:100%;height:230px;display:block}
+  .log{background:var(--bg-elevated);border:1px solid var(--line);padding:.85rem 1.1rem;
+       font-family:var(--mono);font-size:.74rem;line-height:1.5;color:var(--ink-2);
+       height:19rem;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;margin:.8rem 0 0}
+  .log .em{color:var(--ink);font-weight:700}
+  .log .blue{color:var(--blue-dark)}
+  .log .bad{color:var(--low)}
+  .diagram{border:1px solid var(--line);background:var(--bg);padding:.5rem;margin:0 0 1rem}
+  .diagram svg{width:100%;height:auto;display:block}
+  @media (max-width:640px){
+    body{padding:0 1rem 4rem}
+    header{padding:2.5rem 0 1.8rem}
+    section{padding-top:2rem}
+    .headmeta{display:block}
+    .chip{display:block;margin:.4rem 0;overflow-wrap:anywhere}
+    .log{height:14rem}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <p class="kicker">TEM Agent · local demo</p>
+  <h1>Four optimisation loops, driven by rules, against the AutoScript simulator</h1>
+  <div class="headmeta">
+    <span class="chip">policy <strong>rule</strong> — no LLM</span>
+    <span class="chip">tools <strong>13</strong></span>
+    <span class="chip">simulator <strong>13.202.106.11:7521</strong></span>
+    <span class="chip">runner <strong>demo_server.py</strong></span>
+  </div>
+</header>
+
+<section id="run">
+  <h2 class="label">Run a loop</h2>
+
+  <div class="loops" id="loops"></div>
+
+  <div class="fields">
+    <label class="field check"><input type="checkbox" id="dry" checked /> dry run, mock connector</label>
+    <label class="field"><span>simulator host</span><input type="text" id="host" value="13.202.106.11" /></label>
+    <label class="field"><span>port</span><input type="number" id="port" value="7521" /></label>
+  </div>
+
+  <div class="runbar">
+    <button class="btn primary" id="run">Run loop</button>
+    <button class="btn" id="check">Check simulator</button>
+    <span class="status" id="status">idle</span>
+  </div>
+
+  <div class="note" id="simnote">
+    A dry run drives <code>tests/mock_connector.py</code> in memory, so it needs no hardware.
+    Untick it to drive the simulator over TCP — which only works once that host has an
+    offline AutoScript TEM licence loaded.
+  </div>
+
+  <div class="chartwrap">
+    <canvas id="chart"></canvas>
+  </div>
+  <div class="log" id="log">Idle. Pick a loop and press Run.</div>
+</section>
+
+<section id="wiring">
+  <h2 class="label">How the agent and the simulator are connected</h2>
+
+  <div class="diagram">
+    <svg viewBox="0 0 1000 500" role="img" aria-label="Wiring between the demo UI, the agent stack and the simulator">
+      <defs>
+        <marker id="arw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#737373"></path>
+        </marker>
+        <marker id="arwb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#1d4ed8"></path>
+        </marker>
+      </defs>
+
+      <!-- boxes: x y w h -->
+      <g fill="#ffffff" stroke="#e5e5e5">
+        <rect x="20"  y="20"  width="220" height="46"></rect>
+        <rect x="280" y="20"  width="220" height="46"></rect>
+        <rect x="540" y="20"  width="220" height="46"></rect>
+        <rect x="540" y="100" width="220" height="46"></rect>
+        <rect x="540" y="180" width="220" height="46"></rect>
+        <rect x="540" y="270" width="220" height="46"></rect>
+        <rect x="540" y="350" width="220" height="46"></rect>
+        <rect x="540" y="430" width="220" height="46"></rect>
+        <rect x="800" y="100" width="180" height="46"></rect>
+        <rect x="800" y="180" width="180" height="46"></rect>
+        <rect x="800" y="270" width="180" height="46"></rect>
+        <rect x="800" y="430" width="180" height="46"></rect>
+      </g>
+
+      <!-- solid arrows -->
+      <g stroke="#737373" stroke-width="1.4" fill="none" marker-end="url(#arw)">
+        <line x1="240" y1="43"  x2="276" y2="43"></line>
+        <line x1="500" y1="43"  x2="536" y2="43"></line>
+        <line x1="650" y1="66"  x2="650" y2="96"></line>
+        <line x1="650" y1="146" x2="650" y2="176"></line>
+        <line x1="650" y1="226" x2="650" y2="266"></line>
+        <line x1="650" y1="316" x2="650" y2="346"></line>
+        <line x1="650" y1="396" x2="650" y2="426"></line>
+        <line x1="760" y1="453" x2="796" y2="453"></line>
+        <line x1="760" y1="293" x2="796" y2="293" stroke-dasharray="4 3"></line>
+        <line x1="760" y1="123" x2="796" y2="123" stroke-dasharray="4 3"></line>
+        <line x1="760" y1="203" x2="796" y2="203" stroke-dasharray="4 3"></line>
+      </g>
+
+      <!-- the loop feeds results back to the policy -->
+      <path d="M770,203 C800,175 800,140 770,120" stroke="#1d4ed8" stroke-width="1.4"
+            fill="none" marker-end="url(#arwb)" opacity="0"></path>
+
+      <!-- labels -->
+      <g font-family="ui-monospace,Menlo,Consolas,monospace" font-size="11.5" fill="#171717">
+        <text x="34"  y="40">web/index.html</text>
+        <text x="294" y="40">demo_server.py</text>
+        <text x="554" y="40">tem_agent.py</text>
+        <text x="554" y="120">policies/rule_policy.py</text>
+        <text x="554" y="200">tem_capabilities.py</text>
+        <text x="554" y="290">autoscript_connector.py</text>
+        <text x="554" y="370">autoscript_interface.py</text>
+        <text x="554" y="450">TemMicroscopeClient()</text>
+        <text x="814" y="120">config/tools.yaml</text>
+        <text x="814" y="200">instrument_autoscript.yaml</text>
+        <text x="814" y="290">mock_connector.py</text>
+        <text x="814" y="450">AutoScript TEM sim</text>
+      </g>
+      <g font-family="-apple-system,Segoe UI,Roboto,sans-serif" font-size="10.5" fill="#737373">
+        <text x="34"  y="56">browser page, polls every 500 ms</text>
+        <text x="294" y="56">stdlib HTTP + JSON API</text>
+        <text x="554" y="56">run_goal() agent loop</text>
+        <text x="554" y="136">deterministic decisions</text>
+        <text x="554" y="216">13 tools, safety limits</text>
+        <text x="554" y="306">talks to the interface</text>
+        <text x="554" y="386">AutoScript bindings</text>
+        <text x="554" y="466">framed protocol, port 7521</text>
+        <text x="814" y="136">tool schemas</text>
+        <text x="814" y="216">defocus, stage, voltage bounds</text>
+        <text x="814" y="306">in memory, no network</text>
+        <text x="814" y="466">13.202.106.11:7521</text>
+      </g>
+
+      <!-- arrow captions -->
+      <g font-family="ui-monospace,Menlo,Consolas,monospace" font-size="10" fill="#1d4ed8">
+        <text x="497" y="36" text-anchor="end">POST /api/run</text>
+        <text x="658" y="88">get_next_action()</text>
+        <text x="658" y="168">tool call</text>
+        <text x="658" y="248">execute()</text>
+        <text x="658" y="338">vendor call</text>
+        <text x="658" y="418">TCP</text>
+        <text x="778" y="286">--dry-run</text>
+        <text x="778" y="116">declares</text>
+        <text x="778" y="196">limits</text>
+      </g>
+    </svg>
+  </div>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Hop</th><th>What crosses it</th></tr></thead>
+      <tbody>
+        <tr><td>page → <code>demo_server.py</code></td><td><code>POST /api/run</code> with the loop, the dry-run flag and the host, then <code>GET /api/state</code> polling as the agent prints.</td></tr>
+        <tr><td><code>demo_server.py</code> → <code>tem_agent.py</code></td><td><code>invoke_tem_ai_model(model_name="rule")</code> on a background thread, with the agent's stdout captured line by line.</td></tr>
+        <tr><td>loop → <code>rule_policy.py</code></td><td><code>get_next_action()</code> returns the next tool call; each result goes back through <code>post_tool_results()</code>.</td></tr>
+        <tr><td>loop → <code>tem_capabilities.py</code></td><td>The tool call itself. Every argument is checked against <code>instrument_autoscript.yaml</code> before anything reaches the instrument.</td></tr>
+        <tr><td>capabilities → connector</td><td>One of two connectors: <code>autoscript_connector.py</code> for real hardware, <code>mock_connector.py</code> under <code>--dry-run</code>.</td></tr>
+        <tr><td>connector → simulator</td><td><code>autoscript_interface.py</code> calls <code>TemMicroscopeClient</code>, which speaks the AutoScript framed protocol to <code>13.202.106.11:7521</code>. No HTTP anywhere in this hop.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <details class="fold">
+    <summary>Mermaid source for both diagrams, for a page or a slide that renders Mermaid.</summary>
+    <div class="fold-body">
+<pre><code>flowchart LR
+  UI["web/index.html"] -->|"POST /api/run, GET /api/state"| SRV["demo_server.py"]
+  SRV -->|"invoke_tem_ai_model(model=rule)"| AG["tem_agent.py - run_goal loop"]
+  AG -->|"get_next_action()"| POL["policies/rule_policy.py"]
+  POL -->|"tool call"| AG
+  AG -->|"execute(name, params)"| CAP["tem_capabilities.py"]
+  CAP -.->|"tool schemas"| TOOLS["config/tools.yaml"]
+  CAP -.->|"safety limits"| LIM["config/instrument_autoscript.yaml"]
+  CAP --> CONN["connectors/autoscript_connector.py"]
+  CAP -.->|"--dry-run"| MOCK["tests/mock_connector.py"]
+  CONN --> IF["autoscript_interface.py"]
+  IF --> CL["TemMicroscopeClient"]
+  CL -->|"framed protocol, TCP 7521"| SIM["AutoScript TEM simulator 13.202.106.11"]</code></pre>
+<pre><code>sequenceDiagram
+  autonumber
+  participant UI as web UI
+  participant SRV as demo_server
+  participant AG as TEMAgent loop
+  participant POL as rule_policy
+  participant CAP as tem_capabilities
+  participant SIM as AutoScript
+  UI->>SRV: POST /api/run {loop: focus2}
+  SRV->>AG: invoke_tem_ai_model(model=rule)
+  AG->>CAP: get_microscope_state
+  CAP->>SIM: read stage, defocus, mode
+  AG->>POL: get_next_action()
+  POL-->>AG: set_defocus(target)
+  loop seven sweep points
+    AG->>CAP: set_defocus then acquire_image
+    CAP->>SIM: acquire_stem_image
+    CAP-->>AG: normalized variance
+  end
+  AG->>POL: get_next_action()
+  POL-->>AG: finish
+  AG-->>SRV: stdout lines
+  SRV-->>UI: polled state, points, best focus</code></pre>
+    </div>
+  </details>
+</section>
+
+<div class="foot">Generated from the code in tem-agent/; the page is served by demo_server.py and changes nothing about the agent.</div>
+</div>
+
+<script>
+(function () {
+  var LOOPS = [], current = "focus2", runId = null, since = 0, timer = null, points = [];
+
+  function $(id) { return document.getElementById(id); }
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text !== undefined) n.textContent = text;
+    return n;
+  }
+
+  function renderLoops() {
+    var box = $("loops");
+    box.textContent = "";
+    LOOPS.forEach(function (loop) {
+      var card = el("label", "loop" + (loop.id === current ? " sel" : ""));
+      var input = el("input");
+      input.type = "radio"; input.name = "loop"; input.value = loop.id;
+      input.checked = loop.id === current;
+      input.addEventListener("change", function () { current = loop.id; renderLoops(); });
+      card.appendChild(input);
+      card.appendChild(el("h3", null, loop.title));
+      card.appendChild(el("p", null, loop.blurb));
+      var tag = el("span", "tag blue", loop.id);
+      card.appendChild(tag);
+      box.appendChild(card);
+    });
+  }
+
+  function setStatus(text, cls) {
+    $("status").textContent = text;
+    $("status").className = "status" + (cls ? " " + cls : "");
+  }
+
+  function appendLines(lines) {
+    if (!lines.length) return;
+    var log = $("log");
+    if (log.dataset.fresh === "0") { log.textContent = ""; log.dataset.fresh = "1"; }
+    lines.forEach(function (raw) {
+      var span = el("span");
+      var text = raw.replace(/\s+$/, "");
+      if (!text) return;
+      if (/TASK COMPLETE|NEW BEST/.test(text)) span.className = "em";
+      else if (/\[RulePolicy\]|\[AutoScript\]/.test(text)) span.className = "blue";
+      else if (/error|Error|WARNING|failed/i.test(text)) span.className = "bad";
+      span.textContent = text + "\n";
+      log.appendChild(span);
+    });
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function draw() {
+    var canvas = $("chart");
+    var dpr = window.devicePixelRatio || 1;
+    var w = canvas.clientWidth || 600, h = 230;
+    canvas.width = w * dpr; canvas.height = h * dpr;
+    var ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    var pad = { l: 52, r: 16, t: 14, b: 28 };
+    var plotW = w - pad.l - pad.r, plotH = h - pad.t - pad.b;
+    ctx.fillStyle = "#fafafa"; ctx.fillRect(pad.l, pad.t, plotW, plotH);
+    ctx.strokeStyle = "#e5e5e5"; ctx.lineWidth = 1;
+    ctx.strokeRect(pad.l, pad.t, plotW, plotH);
+
+    ctx.fillStyle = "#737373";
+    ctx.font = "10px ui-monospace, Menlo, Consolas, monospace";
+    ctx.fillText("normalized variance", 6, pad.t + 2);
+    ctx.fillText("defocus (nm)", pad.l, h - 8);
+
+    if (!points.length) {
+      ctx.fillText("no measurements yet", pad.l + 10, pad.t + 22);
+      return;
+    }
+
+    var xs = points.map(function (p) { return p.df_nm; });
+    var ys = points.map(function (p) { return p.score; });
+    var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs);
+    var y0 = 0, y1 = Math.max.apply(null, ys) * 1.15 || 1;
+    if (x1 - x0 < 1e-9) { x0 -= 1; x1 += 1; }
+
+    function px(v) { return pad.l + (v - x0) / (x1 - x0) * plotW; }
+    function py(v) { return pad.t + plotH - (v - y0) / (y1 - y0) * plotH; }
+
+    ctx.strokeStyle = "#e5e5e5";
+    for (var i = 0; i <= 4; i++) {
+      var gy = pad.t + plotH * i / 4;
+      ctx.beginPath(); ctx.moveTo(pad.l, gy); ctx.lineTo(pad.l + plotW, gy); ctx.stroke();
+      ctx.fillStyle = "#a3a3a3";
+      ctx.fillText((y0 + (y1 - y0) * (1 - i / 4)).toFixed(3), 6, gy + 3);
+    }
+    ctx.fillStyle = "#a3a3a3";
+    ctx.fillText(x0.toFixed(0), pad.l, h - 14);
+    ctx.fillText(x1.toFixed(0), pad.l + plotW - 24, h - 14);
+
+    var sorted = points.slice().sort(function (a, b) { return a.df_nm - b.df_nm; });
+    var series = {};
+    sorted.forEach(function (p) { (series[p.tilt] = series[p.tilt] || []).push(p); });
+    var shades = ["#1d4ed8", "#1f7a4d", "#a36a1c", "#b3392f", "#525252"];
+
+    Object.keys(series).forEach(function (k, si) {
+      var run = series[k];
+      ctx.strokeStyle = shades[si % shades.length];
+      ctx.lineWidth = 1.4; ctx.beginPath();
+      run.forEach(function (p, i) {
+        if (i === 0) ctx.moveTo(px(p.df_nm), py(p.score)); else ctx.lineTo(px(p.df_nm), py(p.score));
+      });
+      ctx.stroke();
+      ctx.fillStyle = shades[si % shades.length];
+      run.forEach(function (p) {
+        ctx.beginPath(); ctx.arc(px(p.df_nm), py(p.score), 3, 0, Math.PI * 2); ctx.fill();
+      });
+    });
+
+    var best = points.reduce(function (a, b) { return b.score > a.score ? b : a; });
+    ctx.strokeStyle = "#1d4ed8"; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(px(best.df_nm), py(best.score), 7, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = "#1e40af";
+    ctx.font = "11px ui-monospace, Menlo, Consolas, monospace";
+    var label = "peak " + best.score.toFixed(4) + " @ " + best.df_nm.toFixed(0) + " nm";
+    ctx.fillText(label, Math.min(px(best.df_nm) + 10, pad.l + plotW - ctx.measureText(label).width - 2), py(best.score) - 8);
+  }
+
+  function poll() {
+    fetch("/api/state?id=" + runId + "&since=" + since)
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        since = d.next;
+        appendLines(d.lines);
+        points = d.points || [];
+        draw();
+        if (d.best) {
+          setStatus("best " + d.best.df_nm.toFixed(1) + " nm  ·  " + d.points.length + " measurements");
+        }
+        var running = d.status === "running";
+        $("run").disabled = running;
+        if (running) { timer = setTimeout(poll, 500); }
+        else {
+          $("run").disabled = false;
+          setStatus(d.status + (d.iterations ? "  ·  " + d.iterations + " iterations" : ""),
+                    d.status === "failed" ? "bad" : "");
+          if (d.error) { appendLines([d.error]); }
+        }
+      })
+      .catch(function (e) { setStatus("poll failed: " + e.message, "bad"); });
+  }
+
+  function start() {
+    if (runId) { clearTimeout(timer); }
+    since = 0; points = []; draw();
+    $("log").dataset.fresh = "0";
+    $("run").disabled = true;
+    setStatus("starting");
+    fetch("/api/run", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        loop: current,
+        dry_run: $("dry").checked,
+        host: $("host").value.trim(),
+        port: parseInt($("port").value, 10) || 7521
+      })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.error) { setStatus(d.error, "bad"); $("run").disabled = false; return; }
+        runId = d.id; poll();
+      })
+      .catch(function (e) { setStatus("run failed: " + e.message, "bad"); $("run").disabled = false; });
+  }
+
+  function checkSim() {
+    setStatus("checking simulator");
+    fetch("/api/simcheck", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ host: $("host").value.trim(), port: parseInt($("port").value, 10) || 7521 })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var note = $("simnote");
+        note.textContent = "";
+        var b = el("strong", null, d.tcp ? "TCP reachable. " : "TCP unreachable. ");
+        note.appendChild(b);
+        note.appendChild(document.createTextNode(d.detail || ""));
+        setStatus(d.activation === "ok" ? "simulator ready" : (d.tcp ? "reachable, calls refused" : "unreachable"),
+                  d.activation === "ok" ? "" : "bad");
+      })
+      .catch(function (e) { setStatus("check failed: " + e.message, "bad"); });
+  }
+
+  $("run").addEventListener("click", start);
+  $("check").addEventListener("click", checkSim);
+  draw();
+
+  fetch("/api/loops").then(function (r) { return r.json(); }).then(function (d) {
+    LOOPS = d.loops;
+    if (d.default_host) { $("host").value = d.default_host; }
+    if (d.default_port) { $("port").value = d.default_port; }
+    renderLoops();
+  });
+})();
+</script>
+</body>
+</html>

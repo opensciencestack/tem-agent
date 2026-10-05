@@ -137,3 +137,16 @@ tools:
           type: number
           description: "The target acceleration voltage in kV (e.g. 80.0, 200.0, 300.0)."
       required: [voltage_kv]
+
+  - name: set_optical_mode
+    description: >
+      Set the column optical mode. An acquisition takes a STEM scan in Stem mode
+      and a camera image in Tem mode, so set this before acquiring.
+    input_schema:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: ["Stem", "Tem"]
+          description: "The optical mode to select."
+      required: [mode]

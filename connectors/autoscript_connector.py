@@ -58,3 +58,6 @@ class AutoScriptConnector:
 
     def set_acceleration_voltage(self, voltage_kv: float):
         _mi.set_acceleration_voltage(voltage_kv)
+
+    def set_optical_mode(self, mode: str):
+        _mi.set_optical_mode(mode)

@@ -169,8 +169,9 @@ def get_microscope_state() -> dict:
         'stage_position': stage_pos,
         'beam_blanked': blanked,
         'column_valve_open': column_valve_open,
+        'optical_mode': opt_mode,
         'detector': {
-            'type': opt_mode,
+            'type': detector_config.get('type', 'HAADF'),
             'dwell_time_s': detector_config.get('dwell_time', 2e-6),
             'image_shape': detector_config.get('image_shape', (256, 256))
         }
@@ -185,6 +186,22 @@ def set_acceleration_voltage(voltage_kv: float):
         client.optics.acceleration_voltage.value = float(voltage_kv * 1000.0)
     except Exception as e:
         raise NotImplementedError(f"set_acceleration_voltage failed/unsupported: {e}")
+
+def set_optical_mode(mode: str):
+    """
+    Sets the column optical mode. The value is the string behind the OpticalMode
+    enumeration: 'Stem' or 'Tem'. An acquisition reads this mode back to decide
+    whether it takes a STEM scan or a camera image, so it must be set before one.
+    """
+    _check_connection()
+    from autoscript_tem_microscope_client.enumerations import OpticalMode
+    valid = (OpticalMode.STEM, OpticalMode.TEM)
+    if mode not in valid:
+        raise ValueError(f"Optical mode must be one of {list(valid)}, got {mode!r}.")
+    try:
+        client.optics.optical_mode = mode
+    except Exception as e:
+        raise NotImplementedError(f"set_optical_mode failed/unsupported: {e}")
 
 def set_magnification(mag: int):
     """
