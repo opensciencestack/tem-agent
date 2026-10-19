@@ -103,8 +103,9 @@
   .field{display:flex;flex-direction:column;gap:.25rem}
   .field span{font-family:var(--mono);font-size:.66rem;letter-spacing:.06em;
         text-transform:uppercase;color:var(--mono-ink)}
-  .field input[type=text],.field input[type=number]{font:400 .85rem var(--mono);
+  .field input[type=text],.field input[type=number],.field select{font:400 .85rem var(--mono);
         padding:.4rem .6rem;border:1px solid var(--line-strong);background:var(--bg);color:var(--ink);width:12rem}
+  .field select{width:9rem}
   .field.check{flex-direction:row;align-items:center;gap:.5rem;
         font-family:var(--mono);font-size:.72rem;color:var(--ink-2);text-transform:uppercase;
         letter-spacing:.04em;padding-bottom:.35rem}
@@ -119,8 +120,13 @@
   .log .em{color:var(--ink);font-weight:700}
   .log .blue{color:var(--blue-dark)}
   .log .bad{color:var(--low)}
-  .diagram{border:1px solid var(--line);background:var(--bg);padding:.5rem;margin:0 0 1rem}
-  .diagram svg{width:100%;height:auto;display:block}
+  /* diagram: the shell's .diagram, docs/skills/writeup/SHELL.html. The pre holds
+     the Mermaid source the shell renders, so it stays on the page as the
+     diagram's text when Mermaid cannot be fetched. */
+  .diagram{border:1px solid var(--line);background:var(--bg);padding:1rem 1.1rem;margin:0 0 1.1rem}
+  .diagram pre.mermaid{background:none;border:0;padding:0;margin:0;overflow-x:auto}
+  .diagram pre.mermaid svg{width:100%;height:auto;display:block}
+  .diagram .note{margin:0 0 .8rem}
   @media (max-width:640px){
     body{padding:0 1rem 4rem}
     header{padding:2.5rem 0 1.8rem}
@@ -138,19 +144,20 @@
   <p class="kicker">TEM Agent · local demo</p>
   <h1>Four optimisation loops, driven by rules, against the AutoScript simulator</h1>
   <div class="headmeta">
-    <span class="chip">policy <strong>rule</strong> — no LLM</span>
+    <span class="chip" id="policychip">policy <strong>rule</strong> — no LLM</span>
     <span class="chip">tools <strong>13</strong></span>
-    <span class="chip">simulator <strong>13.202.106.11:7521</strong></span>
+    <span class="chip">simulator <strong id="simaddr">13.202.106.11:7521</strong></span>
     <span class="chip">runner <strong>demo_server.py</strong></span>
   </div>
 </header>
 
-<section id="run">
+<section>
   <h2 class="label">Run a loop</h2>
 
   <div class="loops" id="loops"></div>
 
   <div class="fields">
+    <label class="field"><span>policy</span><select id="model"></select></label>
     <label class="field check"><input type="checkbox" id="dry" checked /> dry run, mock connector</label>
     <label class="field"><span>simulator host</span><input type="text" id="host" value="13.202.106.11" /></label>
     <label class="field"><span>port</span><input type="number" id="port" value="7521" /></label>
@@ -178,102 +185,27 @@
   <h2 class="label">How the agent and the simulator are connected</h2>
 
   <div class="diagram">
-    <svg viewBox="0 0 1000 500" role="img" aria-label="Wiring between the demo UI, the agent stack and the simulator">
-      <defs>
-        <marker id="arw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-          <path d="M0,0 L10,5 L0,10 z" fill="#737373"></path>
-        </marker>
-        <marker id="arwb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-          <path d="M0,0 L10,5 L0,10 z" fill="#1d4ed8"></path>
-        </marker>
-      </defs>
-
-      <!-- boxes: x y w h -->
-      <g fill="#ffffff" stroke="#e5e5e5">
-        <rect x="20"  y="20"  width="220" height="46"></rect>
-        <rect x="280" y="20"  width="220" height="46"></rect>
-        <rect x="540" y="20"  width="220" height="46"></rect>
-        <rect x="540" y="100" width="220" height="46"></rect>
-        <rect x="540" y="180" width="220" height="46"></rect>
-        <rect x="540" y="270" width="220" height="46"></rect>
-        <rect x="540" y="350" width="220" height="46"></rect>
-        <rect x="540" y="430" width="220" height="46"></rect>
-        <rect x="800" y="100" width="180" height="46"></rect>
-        <rect x="800" y="180" width="180" height="46"></rect>
-        <rect x="800" y="270" width="180" height="46"></rect>
-        <rect x="800" y="430" width="180" height="46"></rect>
-      </g>
-
-      <!-- solid arrows -->
-      <g stroke="#737373" stroke-width="1.4" fill="none" marker-end="url(#arw)">
-        <line x1="240" y1="43"  x2="276" y2="43"></line>
-        <line x1="500" y1="43"  x2="536" y2="43"></line>
-        <line x1="650" y1="66"  x2="650" y2="96"></line>
-        <line x1="650" y1="146" x2="650" y2="176"></line>
-        <line x1="650" y1="226" x2="650" y2="266"></line>
-        <line x1="650" y1="316" x2="650" y2="346"></line>
-        <line x1="650" y1="396" x2="650" y2="426"></line>
-        <line x1="760" y1="453" x2="796" y2="453"></line>
-        <line x1="760" y1="293" x2="796" y2="293" stroke-dasharray="4 3"></line>
-        <line x1="760" y1="123" x2="796" y2="123" stroke-dasharray="4 3"></line>
-        <line x1="760" y1="203" x2="796" y2="203" stroke-dasharray="4 3"></line>
-      </g>
-
-      <!-- the loop feeds results back to the policy -->
-      <path d="M770,203 C800,175 800,140 770,120" stroke="#1d4ed8" stroke-width="1.4"
-            fill="none" marker-end="url(#arwb)" opacity="0"></path>
-
-      <!-- labels -->
-      <g font-family="ui-monospace,Menlo,Consolas,monospace" font-size="11.5" fill="#171717">
-        <text x="34"  y="40">web/index.html</text>
-        <text x="294" y="40">demo_server.py</text>
-        <text x="554" y="40">tem_agent.py</text>
-        <text x="554" y="120">policies/rule_policy.py</text>
-        <text x="554" y="200">tem_capabilities.py</text>
-        <text x="554" y="290">autoscript_connector.py</text>
-        <text x="554" y="370">autoscript_interface.py</text>
-        <text x="554" y="450">TemMicroscopeClient()</text>
-        <text x="814" y="120">config/tools.yaml</text>
-        <text x="814" y="200">instrument_autoscript.yaml</text>
-        <text x="814" y="290">mock_connector.py</text>
-        <text x="814" y="450">AutoScript TEM sim</text>
-      </g>
-      <g font-family="-apple-system,Segoe UI,Roboto,sans-serif" font-size="10.5" fill="#737373">
-        <text x="34"  y="56">browser page, polls every 500 ms</text>
-        <text x="294" y="56">stdlib HTTP + JSON API</text>
-        <text x="554" y="56">run_goal() agent loop</text>
-        <text x="554" y="136">deterministic decisions</text>
-        <text x="554" y="216">13 tools, safety limits</text>
-        <text x="554" y="306">talks to the interface</text>
-        <text x="554" y="386">AutoScript bindings</text>
-        <text x="554" y="466">framed protocol, port 7521</text>
-        <text x="814" y="136">tool schemas</text>
-        <text x="814" y="216">defocus, stage, voltage bounds</text>
-        <text x="814" y="306">in memory, no network</text>
-        <text x="814" y="466">13.202.106.11:7521</text>
-      </g>
-
-      <!-- arrow captions -->
-      <g font-family="ui-monospace,Menlo,Consolas,monospace" font-size="10" fill="#1d4ed8">
-        <text x="497" y="36" text-anchor="end">POST /api/run</text>
-        <text x="658" y="88">get_next_action()</text>
-        <text x="658" y="168">tool call</text>
-        <text x="658" y="248">execute()</text>
-        <text x="658" y="338">vendor call</text>
-        <text x="658" y="418">TCP</text>
-        <text x="778" y="286">--dry-run</text>
-        <text x="778" y="116">declares</text>
-        <text x="778" y="196">limits</text>
-      </g>
-    </svg>
+    <pre class="mermaid">flowchart TD
+  UI["web/index.html&lt;br/&gt;browser page"] -->|"POST /api/run&lt;br/&gt;GET /api/state"| SRV["demo_server.py&lt;br/&gt;stdlib HTTP"]
+  SRV -->|"invoke_tem_ai_model(model=policy)"| AG["tem_agent.py&lt;br/&gt;run_goal() loop"]
+  AG -->|"get_next_action()"| POL["policies/rule_policy.py"]
+  POL -->|"tool call"| AG
+  AG -->|"execute(name, params)"| CAP["tem_capabilities.py"]
+  CAP -.->|"tool schemas"| TOOLS["config/tools.yaml&lt;br/&gt;13 tools"]
+  CAP -.->|"safety limits"| LIM["config/instrument_autoscript.yaml"]
+  CAP --> CONN["connectors/autoscript_connector.py"]
+  CAP -.->|"--dry-run"| MOCK["tests/mock_connector.py&lt;br/&gt;in memory"]
+  CONN --> IF["autoscript_interface.py&lt;br/&gt;AutoScript bindings"]
+  IF --> CL["TemMicroscopeClient()"]
+  CL -->|"framed protocol, TCP 7521"| SIM["AutoScript TEM simulator&lt;br/&gt;13.202.106.11:7521"]</pre>
   </div>
 
   <div class="tablewrap">
     <table>
       <thead><tr><th>Hop</th><th>What crosses it</th></tr></thead>
       <tbody>
-        <tr><td>page → <code>demo_server.py</code></td><td><code>POST /api/run</code> with the loop, the dry-run flag and the host, then <code>GET /api/state</code> polling as the agent prints.</td></tr>
-        <tr><td><code>demo_server.py</code> → <code>tem_agent.py</code></td><td><code>invoke_tem_ai_model(model_name="rule")</code> on a background thread, with the agent's stdout captured line by line.</td></tr>
+        <tr><td>page → <code>demo_server.py</code></td><td><code>POST /api/run</code> with the loop, the policy, the dry-run flag and the host, then <code>GET /api/state</code> polling as the agent prints.</td></tr>
+        <tr><td><code>demo_server.py</code> → <code>tem_agent.py</code></td><td><code>invoke_tem_ai_model(model_name=&lt;the policy the page sent&gt;)</code> on a background thread, with the agent's stdout captured line by line.</td></tr>
         <tr><td>loop → <code>rule_policy.py</code></td><td><code>get_next_action()</code> returns the next tool call; each result goes back through <code>post_tool_results()</code>.</td></tr>
         <tr><td>loop → <code>tem_capabilities.py</code></td><td>The tool call itself. Every argument is checked against <code>instrument_autoscript.yaml</code> before anything reaches the instrument.</td></tr>
         <tr><td>capabilities → connector</td><td>One of two connectors: <code>autoscript_connector.py</code> for real hardware, <code>mock_connector.py</code> under <code>--dry-run</code>.</td></tr>
@@ -282,25 +214,19 @@
     </table>
   </div>
 
-  <details class="fold">
-    <summary>Mermaid source for both diagrams, for a page or a slide that renders Mermaid.</summary>
-    <div class="fold-body">
-<pre><code>flowchart LR
-  UI["web/index.html"] -->|"POST /api/run, GET /api/state"| SRV["demo_server.py"]
-  SRV -->|"invoke_tem_ai_model(model=rule)"| AG["tem_agent.py - run_goal loop"]
-  AG -->|"get_next_action()"| POL["policies/rule_policy.py"]
-  POL -->|"tool call"| AG
-  AG -->|"execute(name, params)"| CAP["tem_capabilities.py"]
-  CAP -.->|"tool schemas"| TOOLS["config/tools.yaml"]
-  CAP -.->|"safety limits"| LIM["config/instrument_autoscript.yaml"]
-  CAP --> CONN["connectors/autoscript_connector.py"]
-  CAP -.->|"--dry-run"| MOCK["tests/mock_connector.py"]
-  CONN --> IF["autoscript_interface.py"]
-  IF --> CL["TemMicroscopeClient"]
-  CL -->|"framed protocol, TCP 7521"| SIM["AutoScript TEM simulator 13.202.106.11"]</code></pre>
-<pre><code>sequenceDiagram
+  <p>Each diagram's source is the block on the page, so a copy opened without a
+  network shows the source in place of the picture. The same four sources are in
+  <code>tem-agent/DIAGRAMS.md</code>.</p>
+</section>
+
+<section id="steps">
+  <h2 class="label">The loops, step by step</h2>
+
+  <h3>The two-stage focus sweep</h3>
+  <div class="diagram">
+    <pre class="mermaid">sequenceDiagram
   autonumber
-  participant UI as web UI
+  participant UI as web page
   participant SRV as demo_server
   participant AG as TEMAgent loop
   participant POL as rule_policy
@@ -309,20 +235,70 @@
   UI->>SRV: POST /api/run {loop: focus2}
   SRV->>AG: invoke_tem_ai_model(model=rule)
   AG->>CAP: get_microscope_state
-  CAP->>SIM: read stage, defocus, mode
+  CAP->>SIM: read stage, defocus, optical mode, voltage
   AG->>POL: get_next_action()
-  POL-->>AG: set_defocus(target)
-  loop seven sweep points
-    AG->>CAP: set_defocus then acquire_image
+  POL-->>AG: set_defocus for sweep point 1
+  loop seven coarse points, then five fine
+    AG->>CAP: set_defocus(target)
+    CAP->>CAP: reject a change over 5 µm
+    CAP->>SIM: set the objective defocus
+    AG->>CAP: acquire_image
     CAP->>SIM: acquire_stem_image
-    CAP-->>AG: normalized variance
+    CAP-->>AG: normalized variance of the frame
+    AG->>POL: post_tool_results
   end
-  AG->>POL: get_next_action()
-  POL-->>AG: finish
+  POL-->>AG: set_defocus(best)
+  AG->>CAP: finish(summary)
+  CAP->>CAP: require the resting defocus within 10 nm of the best
   AG-->>SRV: stdout lines
-  SRV-->>UI: polled state, points, best focus</code></pre>
-    </div>
-  </details>
+  SRV-->>UI: polled state, points, best focus</pre>
+  </div>
+
+  <h3>The tomography tilt series</h3>
+  <div class="diagram">
+    <pre class="mermaid">flowchart TD
+  A["get_microscope_state"] --> B["open_column_valve, unblank_beam,&lt;br/&gt;set_optical_mode, configure_detector"]
+  B --> C{"another angle?"}
+  C -->|"yes"| D["move_stage(dA = target - current)"]
+  D --> E["refocus sweep at this angle&lt;br/&gt;3 points, score each frame"]
+  E --> F["set the best defocus"]
+  F --> G["acquire the projection image"]
+  G --> C
+  C -->|"no"| H["move_stage back to 0 degrees"]
+  H --> I["set the best defocus of the series"]
+  I --> J["finish"]</pre>
+  </div>
+
+  <h3>The policy's own state machine</h3>
+  <div class="diagram">
+    <pre class="mermaid">stateDiagram-v2
+  [*] --> start
+  start --> after_start : get_microscope_state
+  after_start --> sweep_set : focus, focus2
+  after_start --> survey_acquire : survey
+  after_start --> tomo_tilt : tomography
+  sweep_set --> sweep_acquire : set_defocus
+  sweep_acquire --> sweep_record : acquire_image
+  sweep_record --> sweep_set : next point
+  sweep_record --> sweep_pick : sweep finished
+  sweep_pick --> sweep_set : focus2, stage 2
+  sweep_pick --> tune_check : restore the best
+  tune_check --> finish
+  tomo_tilt --> tomo_tilt_read : move_stage
+  tomo_tilt_read --> tomo_sweep_set
+  tomo_sweep_set --> tomo_sweep_acquire : set_defocus
+  tomo_sweep_acquire --> tomo_sweep_record : acquire_image
+  tomo_sweep_record --> tomo_sweep_set
+  tomo_sweep_record --> tomo_restore : angle focused
+  tomo_restore --> tomo_projection
+  tomo_projection --> tomo_tilt
+  tomo_tilt --> tomo_restore_read : angles done, stage still tilted
+  tomo_restore_read --> tomo_final_restore : set the series best focus
+  tomo_final_restore --> finish
+  survey_acquire --> survey_done : acquire_image
+  survey_done --> finish
+  finish --> [*]</pre>
+  </div>
 </section>
 
 <div class="foot">Generated from the code in tem-agent/; the page is served by demo_server.py and changes nothing about the agent.</div>
@@ -331,6 +307,44 @@
 <script>
 (function () {
   var LOOPS = [], current = "focus2", runId = null, since = 0, timer = null, points = [];
+  var model = "rule", NOTE_HOME = $("simnote").innerHTML;
+
+  // What each policy is, in one line: the chip has to stay true when the
+  // selector moves, and a model-backed policy bills whether or not the
+  // connector is the mock.
+  var MODEL_SUFFIX = {
+    rule: "no LLM",
+    claude: "calls the Anthropic API",
+    gemini: "calls the Google API"
+  };
+  var MODEL_NOTE = {
+    claude: "Dry run only swaps the connector for the mock, so Claude still calls "
+          + "the Anthropic API on every iteration: up to 60 billed calls in one run. "
+          + "The key must be in the environment this server was started with.",
+    gemini: "Dry run only swaps the connector for the mock, so Gemini still calls "
+          + "the Google API on every iteration: up to 60 billed calls in one run. "
+          + "The key must be in the environment this server was started with."
+  };
+
+  function setNote(html) {
+    $("simnote").innerHTML = html === null ? NOTE_HOME : html;
+  }
+
+  function showNotice(text) {
+    var note = $("simnote");
+    note.textContent = "";
+    note.appendChild(el("strong", null, "The simulator refused the call. "));
+    note.appendChild(document.createTextNode(text));
+  }
+
+  function applyModel(name) {
+    model = name;
+    var chip = $("policychip");
+    chip.textContent = "policy ";
+    chip.appendChild(el("strong", null, name));
+    chip.appendChild(document.createTextNode(" — " + (MODEL_SUFFIX[name] || "unknown")));
+    setNote(MODEL_NOTE[name] || null);
+  }
 
   function $(id) { return document.getElementById(id); }
 
@@ -472,6 +486,10 @@
           $("run").disabled = false;
           setStatus(d.status + (d.iterations ? "  ·  " + d.iterations + " iterations" : ""),
                     d.status === "failed" ? "bad" : "");
+          if (d.notice) {
+            showNotice(d.notice);
+            setStatus("stopped — the simulator refused the call", "bad");
+          }
           if (d.error) { appendLines([d.error]); }
         }
       })
@@ -481,6 +499,7 @@
   function start() {
     if (runId) { clearTimeout(timer); }
     since = 0; points = []; draw();
+    setNote(MODEL_NOTE[model] || null);
     $("log").dataset.fresh = "0";
     $("run").disabled = true;
     setStatus("starting");
@@ -488,6 +507,7 @@
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         loop: current,
+        model: model,
         dry_run: $("dry").checked,
         host: $("host").value.trim(),
         port: parseInt($("port").value, 10) || 7521
@@ -528,7 +548,84 @@
     LOOPS = d.loops;
     if (d.default_host) { $("host").value = d.default_host; }
     if (d.default_port) { $("port").value = d.default_port; }
+    $("simaddr").textContent = $("host").value + ":" + $("port").value;
+    var sel = $("model");
+    (d.models || ["rule"]).forEach(function (name) {
+      var option = document.createElement("option");
+      option.value = name; option.textContent = name;
+      sel.appendChild(option);
+    });
+    sel.value = d.default_model || "rule";
+    applyModel(sel.value);
+    sel.addEventListener("change", function () { applyModel(sel.value); });
     renderLoops();
+  });
+})();
+</script>
+<script>
+(function () {
+  // Mermaid is this page's one outside dependency, fetched only when the page
+  // carries a diagram. If it cannot be fetched, each diagram keeps its source
+  // text with a line above it saying so.
+  var blocks = document.querySelectorAll("pre.mermaid");
+  if (!blocks.length) return;
+
+  function showSource(block, why) {
+    var before = block.previousElementSibling;
+    if (before && before.dataset.diagramNote) return;
+    var note = document.createElement("p");
+    note.className = "note";
+    note.dataset.diagramNote = "1";
+    note.textContent = why;
+    block.parentNode.insertBefore(note, block);
+  }
+
+  var ready = false;
+  import("https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs").then(function (mod) {
+    var mermaid = mod.default;
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: "base",
+      themeVariables: {
+        fontSize: "13px",
+        fontFamily: '"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace',
+        background: "#ffffff",
+        primaryColor: "#ffffff",
+        primaryTextColor: "#171717",
+        primaryBorderColor: "#e5e5e5",
+        secondaryColor: "#fafafa",
+        tertiaryColor: "#eff6ff",
+        lineColor: "#737373",
+        edgeLabelBackground: "#ffffff",
+        clusterBkg: "#fafafa",
+        clusterBorder: "#e5e5e5",
+        noteBkgColor: "#fdf6ea",
+        noteBorderColor: "#a36a1c",
+        actorBkg: "#ffffff",
+        actorBorder: "#e5e5e5",
+        actorTextColor: "#171717",
+        signalColor: "#737373",
+        signalTextColor: "#525252",
+        labelBoxBkgColor: "#eff6ff",
+        labelBoxBorderColor: "#1d4ed8",
+        labelTextColor: "#1e40af"
+      },
+      flowchart: { curve: "basis", useMaxWidth: true },
+      sequence: { useMaxWidth: true, mirrorActors: false },
+      state: { useMaxWidth: true }
+    });
+    ready = true;
+    return Promise.all(Array.prototype.map.call(blocks, function (block) {
+      return mermaid.run({ nodes: [block] }).catch(function (err) {
+        showSource(block, "This diagram did not render: " + (err && err.message ? err.message : err));
+      });
+    }));
+  }).catch(function () {
+    Array.prototype.forEach.call(blocks, function (block) {
+      showSource(block, ready
+        ? "This diagram did not render, so it shows its source."
+        : "Mermaid did not load, so this diagram shows its source.");
+    });
   });
 })();
 </script>

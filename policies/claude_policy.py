@@ -7,11 +7,8 @@ Tool schemas are received from ToolRegistry — none are hardcoded here.
 
 import os
 import json
-from dotenv import load_dotenv
 from anthropic import Anthropic
 from policies.base_policy import BaseTEMPolicy
-
-load_dotenv()
 
 
 class ClaudeTEMPolicy(BaseTEMPolicy):
@@ -19,6 +16,8 @@ class ClaudeTEMPolicy(BaseTEMPolicy):
     Claude-based AI policy for the TEM Agent.
     Uses the Anthropic Messages API with tool_use support.
     """
+
+    label = "Claude"
 
     def __init__(self, context_path: str = None):
         api_key = os.environ.get("ANTHROPIC_API_KEY")

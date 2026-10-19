@@ -15,6 +15,10 @@ class BaseTEMPolicy(ABC):
     so they never need to hardcode tool schemas.
     """
 
+    # What the agent loop calls this policy when it prints a decision. A
+    # model-backed policy names its model; the deterministic one says "Rule".
+    label = "AI"
+
     @abstractmethod
     def reset(self, goal_text: str, tools: list):
         """

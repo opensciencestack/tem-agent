@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Load environment variables
-load_dotenv()
+load_dotenv(override=True)
 
 from ai_policy import TEMAgentPolicy
 

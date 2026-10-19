@@ -60,13 +60,11 @@ pip install -r requirements.txt
 ### 2. Set environment variables
 
 ```bash
-export ANTHROPIC_API_KEY="your-anthropic-key"   # required for Claude
-export GEMINI_API_KEY="your-gemini-key"          # required for Gemini
-export AUTOSCRIPT_HOST="<microscope-ip>"         # required for live runs
-export AUTOSCRIPT_PORT="7521"                    # default port
+cp .env.example .env    # then fill in the values
 ```
 
-> **Never put API keys in a file.** Always export them in your terminal session.
+Every entry script reads `tem-agent/.env`, and its values win over variables
+already set on the machine. `.env` is gitignored, so keys stay out of git.
 
 ### 3. Run (no microscope needed)
 

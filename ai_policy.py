@@ -9,11 +9,7 @@ and manages conversation history with Claude.
 import os
 import json
 from anthropic import Anthropic
-from dotenv import load_dotenv
 from tool_registry import ToolRegistry
-
-# Load local environment variables from .env
-load_dotenv()
 
 class TEMAgentPolicy:
     def __init__(self):

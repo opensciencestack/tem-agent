@@ -11,10 +11,7 @@ Environment: GEMINI_API_KEY must be set.
 
 import os
 import json
-from dotenv import load_dotenv
 from policies.base_policy import BaseTEMPolicy
-
-load_dotenv()
 
 
 def _convert_tool_to_gemini(tool: dict) -> dict:
@@ -42,6 +39,8 @@ class GeminiTEMPolicy(BaseTEMPolicy):
     Gemini-based AI policy for the TEM Agent.
     Uses the Google Generative AI SDK with function-calling support.
     """
+
+    label = "Gemini"
 
     def __init__(self, context_path: str = None):
         try:

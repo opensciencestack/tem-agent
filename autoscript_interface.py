@@ -72,7 +72,7 @@ def connect():
     port_str = os.getenv("AUTOSCRIPT_PORT", "7521")
     
     if not host:
-        raise ValueError("AUTOSCRIPT_HOST environment variable is not set! Please export it on the Mac terminal.")
+        raise ValueError("AUTOSCRIPT_HOST environment variable is not set! Set it in tem-agent/.env (see .env.example).")
         
     try:
         port = int(port_str)
@@ -132,9 +132,13 @@ def get_microscope_state() -> dict:
         except Exception as e2:
             raise NotImplementedError(f"Defocus read failed/unsupported: {e} | Fallback failed: {e2}")
 
-    # 3. Read magnification
+    # 3. Read magnification. In diffraction (where STEM leaves the projector on some
+    # servers) the projector has a camera length instead, and magnification is None.
     try:
-        mag = client.optics.magnification.value.nominal
+        if client.optics.projector_mode == 'Imaging':
+            mag = client.optics.magnification.value.nominal
+        else:
+            mag = None
     except Exception as e:
         raise NotImplementedError(f"Magnification read failed/unsupported: {e}")
 

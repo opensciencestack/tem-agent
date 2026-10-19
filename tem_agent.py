@@ -33,6 +33,9 @@ class TEMAgent:
         self.policy = policy
         self.capabilities = capabilities
         self.tool_registry = tool_registry
+        # The same loop drives a model-backed policy and the deterministic rule
+        # one, so each line naming the policy asks it instead of saying "AI".
+        self.policy_label = getattr(policy, "label", "AI")
 
     def run_goal(self, goal_text: str, max_iterations: int = 40):
         print("\n" + "=" * 80)
@@ -53,11 +56,10 @@ class TEMAgent:
             tool_calls, assistant_text = self.policy.get_next_action()
 
             if assistant_text:
-                print(f"AI thought:\n{assistant_text.strip()}\n")
+                print(f"{self.policy_label} thought:\n{assistant_text.strip()}\n")
 
             if not tool_calls:
-                print("\n[Agent Stopped] The agent cannot perform this task "
-                      "with the available microscope tools.")
+                print("\n[Agent Stopped] The policy asked for no further tool calls.")
                 if assistant_text:
                     print(f"Explanation:\n{assistant_text.strip()}\n")
                 break
@@ -72,7 +74,7 @@ class TEMAgent:
                 params = call["input"]
                 tool_use_id = call["id"]
 
-                print(f"AI selected:\n{name}")
+                print(f"{self.policy_label} selected:\n{name}")
                 print(f"Parameters:\n{params}")
 
                 # Guard: reject any tool not in the registry
@@ -104,7 +106,7 @@ class TEMAgent:
                 if best_df is not None:
                     print(f"Best observed defocus: {best_df*1e9:.1f} nm")
                     print(f"Best observed normalized variance: {best_nv:.6f}")
-                print(f"AI finish summary: {finish_result.get('summary', '')}")
+                print(f"{self.policy_label} finish summary: {finish_result.get('summary', '')}")
                 print(f"Total iterations: {iteration}")
                 break
         else:

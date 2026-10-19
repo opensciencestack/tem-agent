@@ -1,18 +1,21 @@
 # How the demo is wired
 
 The TEM Agent runs its optimisation loops with a deterministic policy, so a demo
-needs no LLM, no API key and no network call to a model provider. These diagrams
-are the wiring and the two workflows the demo offers.
+needs no LLM, no API key and no network call to a model provider. The page can
+also run a loop on Claude or Gemini, and those call their API for every decision
+whether or not dry run is ticked, so they need a key and they bill. These
+diagrams are the wiring and the two workflows the demo offers.
 
-The same Mermaid source sits in `web/index.html` behind a fold, so the page can
-be re-rendered wherever Mermaid is available.
+The same Mermaid source sits in `web/index.html`, which renders it: the page draws
+each diagram from that text and falls back to showing the source when Mermaid
+cannot be fetched.
 
 ## Components
 
 ```mermaid
-flowchart LR
+flowchart TD
   UI["web/index.html<br/>browser page"] -->|"POST /api/run<br/>GET /api/state"| SRV["demo_server.py<br/>stdlib HTTP"]
-  SRV -->|"invoke_tem_ai_model(model=rule)"| AG["tem_agent.py<br/>run_goal() loop"]
+  SRV -->|"invoke_tem_ai_model(model=policy)"| AG["tem_agent.py<br/>run_goal() loop"]
   AG -->|"get_next_action()"| POL["policies/rule_policy.py"]
   POL -->|"tool call"| AG
   AG -->|"execute(name, params)"| CAP["tem_capabilities.py"]
@@ -25,12 +28,12 @@ flowchart LR
   CL -->|"framed protocol, TCP 7521"| SIM["AutoScript TEM simulator<br/>13.202.106.11:7521"]
 ```
 
-Node colour is the same link at two levels of detail:
+What crosses each hop:
 
 | Hop | What crosses it |
 | --- | --- |
-| page to `demo_server.py` | `POST /api/run` with the loop, the dry-run flag and the host, then `GET /api/state` polling while the agent prints |
-| `demo_server.py` to `tem_agent.py` | `invoke_tem_ai_model(model_name="rule")` on a background thread, with the agent's stdout captured line by line |
+| page to `demo_server.py` | `POST /api/run` with the loop, the policy, the dry-run flag and the host, then `GET /api/state` polling while the agent prints |
+| `demo_server.py` to `tem_agent.py` | `invoke_tem_ai_model(model_name=<the policy the page sent>)` on a background thread, with the agent's stdout captured line by line |
 | loop to `rule_policy.py` | `get_next_action()` returns the next tool call; each result returns through `post_tool_results()` |
 | loop to `tem_capabilities.py` | the tool call itself, with every argument checked against the instrument YAML before anything reaches the instrument |
 | capabilities to connector | one of two connectors: the AutoScript one for hardware, the mock one under `--dry-run` |
