@@ -197,7 +197,7 @@
   CAP -.->|"--dry-run"| MOCK["tests/mock_connector.py&lt;br/&gt;in memory"]
   CONN --> IF["autoscript_interface.py&lt;br/&gt;AutoScript bindings"]
   IF --> CL["TemMicroscopeClient()"]
-  CL -->|"framed protocol, TCP 7521"| SIM["AutoScript TEM simulator&lt;br/&gt;13.202.106.11:7521"]</pre>
+  CL -->|"framed protocol, TCP 7521"| SIM["AutoScript TEM server&lt;br/&gt;host and port from .env or the page"]</pre>
   </div>
 
   <div class="tablewrap">
@@ -209,7 +209,7 @@
         <tr><td>loop → <code>rule_policy.py</code></td><td><code>get_next_action()</code> returns the next tool call; each result goes back through <code>post_tool_results()</code>.</td></tr>
         <tr><td>loop → <code>tem_capabilities.py</code></td><td>The tool call itself. Every argument is checked against <code>instrument_autoscript.yaml</code> before anything reaches the instrument.</td></tr>
         <tr><td>capabilities → connector</td><td>One of two connectors: <code>autoscript_connector.py</code> for real hardware, <code>mock_connector.py</code> under <code>--dry-run</code>.</td></tr>
-        <tr><td>connector → simulator</td><td><code>autoscript_interface.py</code> calls <code>TemMicroscopeClient</code>, which speaks the AutoScript framed protocol to <code>13.202.106.11:7521</code>. No HTTP anywhere in this hop.</td></tr>
+        <tr><td>connector → simulator</td><td><code>autoscript_interface.py</code> calls <code>TemMicroscopeClient</code>, which speaks the AutoScript framed protocol to the host and port in the page's fields, which start with <code>AUTOSCRIPT_HOST</code> and <code>AUTOSCRIPT_PORT</code> from <code>.env</code>. No HTTP anywhere in this hop.</td></tr>
       </tbody>
     </table>
   </div>

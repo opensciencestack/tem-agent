@@ -25,7 +25,7 @@ flowchart TD
   CAP -.->|"--dry-run"| MOCK["tests/mock_connector.py<br/>in memory"]
   CONN --> IF["autoscript_interface.py<br/>AutoScript bindings"]
   IF --> CL["TemMicroscopeClient()"]
-  CL -->|"framed protocol, TCP 7521"| SIM["AutoScript TEM simulator<br/>13.202.106.11:7521"]
+  CL -->|"framed protocol, TCP 7521"| SIM["AutoScript TEM server<br/>host and port from .env or the page"]
 ```
 
 What crosses each hop:
@@ -131,7 +131,7 @@ anything about the instrument. One reading carries:
 | Key | Meaning |
 | --- | --- |
 | `voltage_kv` | acceleration voltage in kilovolts |
-| `magnification` | nominal value of the current magnification step |
+| `magnification` | nominal value of the current magnification step, or `None` when the projector is in diffraction, where STEM leaves it on some servers |
 | `defocus_m` | objective defocus in metres, read from the STEM or TEM focusing branch according to the optical mode |
 | `stage_position` | X, Y, Z in metres; A and B in degrees |
 | `beam_blanked` | whether the beam blanker is engaged |
@@ -139,17 +139,23 @@ anything about the instrument. One reading carries:
 | `optical_mode` | `Stem` or `Tem`, which decides whether an acquisition is a scan or a camera frame |
 | `detector` | the configured detector name, dwell time and image shape |
 
-## Current state of the simulator
+## Which server the demo talks to
 
-The demo drives either connector. Against `13.202.106.11:7521` the TCP connection
-and the AutoScript handshake both succeed, and then every call is refused:
+The host and port come from `AUTOSCRIPT_HOST` and `AUTOSCRIPT_PORT` in
+`tem-agent/.env`. The page's host and port fields start with those values, and a
+run goes to whatever the fields say.
+
+The server needs its offline AutoScript TEM licence loaded. Without it, the TCP
+connection and the AutoScript handshake both succeed, and then every call is
+refused:
 
 ```
 ApplicationServerException: AutoScript TEM product is not activated properly.
 ```
 
-That is a server-side licence state on the simulator host, not something a client
-can work around: the vendor reference manual states an offline licence is required
-to use AutoScript in offline mode, and the client library exposes no licence API.
-`POST /api/simcheck` reports the same three facts the page shows — reachable,
-refused, and why. `--dry-run` needs none of it.
+The shared simulator at `13.202.106.11:7521` answered that way. No client can fix
+it: the vendor reference manual says AutoScript needs an offline licence to run
+offline, and the client library has no licence API. A locally installed server
+with its trial licence activated ran the tomography loop to the end. `POST /api/simcheck` (the
+page's Check simulator button) tells the two apart: reachable, refused, and why.
+`--dry-run` needs neither.
