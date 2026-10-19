@@ -97,7 +97,7 @@ class TEMCapabilities:
             state = self.connector.get_microscope_state()
             return {
                 "current_defocus_m": float(state["defocus_m"]),
-                "magnification": int(state["magnification"]),
+                "magnification": None if state["magnification"] is None else int(state["magnification"]),
                 "voltage_kv": float(state["voltage_kv"]),
                 "beam_blanked": bool(state["beam_blanked"]),
                 "column_valve_open": bool(state["column_valve_open"]),
