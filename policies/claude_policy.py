@@ -20,6 +20,8 @@ class ClaudeTEMPolicy(BaseTEMPolicy):
     Uses the Anthropic Messages API with tool_use support.
     """
 
+    label = "Claude"
+
     def __init__(self, context_path: str = None):
         api_key = os.environ.get("ANTHROPIC_API_KEY")
         if not api_key:

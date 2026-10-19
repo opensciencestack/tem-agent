@@ -11,8 +11,8 @@ the AutoScript simulator.
 
 The goal text selects the loop by keyword:
 
-    focus        one coarse defocus sweep, then a quadratic peak pick
-    focus2       the same sweep twice -- coarse, then a fine pass around the peak
+    focus        one coarse defocus sweep, keeping the best-scoring point
+    focus2       the same sweep twice -- coarse, then a fine pass around the best point
     survey       read the state, set up the detector, take one image
     tomography   a tilt series, refocusing at every angle
 
@@ -27,6 +27,8 @@ from policies.base_policy import BaseTEMPolicy
 
 class RuleTEMPolicy(BaseTEMPolicy):
     """Deterministic policy: a small state machine per optimisation loop."""
+
+    label = "Rule"
 
     def __init__(self, dwell_time_s: float = 2e-6, image_shape=(512, 512),
                  detector: str = "HAADF", optical_mode="Stem",

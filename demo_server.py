@@ -39,6 +39,8 @@ from invoke_tem_ai_model import invoke_tem_ai_model  # noqa: E402
 MAX_ITERATIONS = 60          # tomography needs ~35; the CLI default of 40 is tight
 DEFAULT_HOST = "13.202.106.11"
 DEFAULT_PORT = 7521
+MODELS = ("rule", "claude", "gemini")   # what invoke_tem_ai_model's build_policy accepts
+DEFAULT_MODEL = "rule"                  # the demo's model-free default
 
 LOOPS = [
     {
@@ -73,17 +75,21 @@ TOMO_RE = re.compile(r"\[RulePolicy\]\s+tilt\s+([+-]?\d+) deg,\s+([+-]?\d+(?:\.\
 BEST_DF_RE = re.compile(r"Best observed defocus:\s+([+-]?\d+(?:\.\d+)?) nm")
 BEST_NV_RE = re.compile(r"Best observed normalized variance:\s+([0-9.]+)")
 ITER_RE = re.compile(r"Total iterations:\s+(\d+)")
+# An AutoScript server without its product licence answers every call with this
+# sentence, so it is the one failure the page can explain by name.
+ACTIVATION_RE = re.compile(r"not activated properly", re.I)
 
 
 class Run:
     """One loop execution, with the agent's output kept for the page to poll."""
 
-    def __init__(self, loop, dry_run, host, port):
+    def __init__(self, loop, dry_run, host, port, model=DEFAULT_MODEL):
         self.id = uuid.uuid4().hex[:12]
         self.loop = loop
         self.dry_run = dry_run
         self.host = host
         self.port = port
+        self.model = model
         self.lock = threading.Lock()
         self.lines = []
         self.points = []
@@ -91,6 +97,7 @@ class Run:
         self.best = None
         self.iterations = None
         self.error = None
+        self.notice = None
 
     def add_line(self, line):
         with self.lock:
@@ -120,10 +127,11 @@ class Run:
         with self.lock:
             return {
                 "id": self.id, "loop": self.loop, "dry_run": self.dry_run,
-                "host": self.host, "port": self.port, "status": self.status,
-                "lines": self.lines[since:], "next": len(self.lines),
-                "points": list(self.points), "best": self.best,
-                "iterations": self.iterations, "error": self.error,
+                "host": self.host, "port": self.port, "model": self.model,
+                "status": self.status, "lines": self.lines[since:],
+                "next": len(self.lines), "points": list(self.points),
+                "best": self.best, "iterations": self.iterations,
+                "error": self.error, "notice": self.notice,
             }
 
     def fail(self, text):
@@ -160,6 +168,25 @@ RUNS_LOCK = threading.Lock()
 RUN_LOCK = threading.Lock()   # stdout capture is process-global: one loop at a time
 
 
+def activation_notice(run):
+    """The licence refusal said in plain words, or None when it did not happen.
+
+    A host that answers every call with 'AutoScript TEM product is not activated
+    properly' cannot be fixed from this page or from any client, so the run says
+    so instead of looking like a broken tool.
+    """
+    if run.dry_run:
+        return None
+    with run.lock:
+        text = "\n".join(run.lines) + "\n" + (run.error or "")
+    if not ACTIVATION_RE.search(text):
+        return None
+    return (f"{run.host}:{run.port} answers with 'AutoScript TEM product is not "
+            f"activated properly', so it refuses every call. That host needs its "
+            f"offline AutoScript TEM licence loaded, which is a server-side state "
+            f"no client can change. A dry run needs none of it.")
+
+
 def execute(run):
     buffer = RunBuffer(run)
     previous_host = os.environ.get("AUTOSCRIPT_HOST")
@@ -169,16 +196,22 @@ def execute(run):
     try:
         with contextlib.redirect_stdout(buffer):
             invoke_tem_ai_model(
-                model_name="rule", goal_text=run.loop,
+                model_name=run.model, goal_text=run.loop,
                 max_iterations=MAX_ITERATIONS, dry_run=run.dry_run,
                 tools_config=None, instrument_config=None,
             )
         buffer.flush()
         if run.status == "running":
             run.status = "stopped"
-    except Exception:
-        run.fail(traceback.format_exc(limit=4))
+    except Exception as exc:
+        # A policy that refuses to start says why in one sentence (a missing API
+        # key, a missing SDK); anything else is worth the traceback.
+        if isinstance(exc, (ValueError, ImportError)):
+            run.fail(str(exc))
+        else:
+            run.fail(traceback.format_exc(limit=4))
     finally:
+        run.notice = activation_notice(run)
         for key, value in (("AUTOSCRIPT_HOST", previous_host),
                            ("AUTOSCRIPT_PORT", previous_port)):
             if value is None:
@@ -249,6 +282,8 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/loops":
             return self._send(200, {"loops": LOOPS, "default_host": DEFAULT_HOST,
                                     "default_port": DEFAULT_PORT,
+                                    "models": list(MODELS),
+                                    "default_model": DEFAULT_MODEL,
                                     "max_iterations": MAX_ITERATIONS})
         if path == "/api/state":
             run_id = (parse_qs(urlparse(self.path).query).get("id") or [""])[0]
@@ -267,9 +302,13 @@ class Handler(BaseHTTPRequestHandler):
             loop = str(body.get("loop") or "focus")
             if loop not in {entry["id"] for entry in LOOPS}:
                 return self._send(400, {"error": f"unknown loop {loop!r}"})
+            model = str(body.get("model") or DEFAULT_MODEL)
+            if model not in MODELS:
+                return self._send(400, {"error": f"unknown model {model!r}; "
+                                                 f"use one of {', '.join(MODELS)}"})
             run = Run(loop, bool(body.get("dry_run", True)),
                       str(body.get("host") or DEFAULT_HOST),
-                      int(body.get("port") or DEFAULT_PORT))
+                      int(body.get("port") or DEFAULT_PORT), model)
             with RUNS_LOCK:
                 RUNS[run.id] = run
             threading.Thread(target=lambda: (RUN_LOCK.acquire(), execute(run),
