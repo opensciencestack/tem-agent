@@ -7,11 +7,8 @@ Tool schemas are received from ToolRegistry — none are hardcoded here.
 
 import os
 import json
-from dotenv import load_dotenv
 from anthropic import Anthropic
 from policies.base_policy import BaseTEMPolicy
-
-load_dotenv()
 
 
 class ClaudeTEMPolicy(BaseTEMPolicy):

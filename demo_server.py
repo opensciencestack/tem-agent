@@ -37,8 +37,8 @@ sys.path.insert(0, str(ROOT))
 from invoke_tem_ai_model import invoke_tem_ai_model  # noqa: E402
 
 MAX_ITERATIONS = 60          # tomography needs ~35; the CLI default of 40 is tight
-DEFAULT_HOST = "13.202.106.11"
-DEFAULT_PORT = 7521
+DEFAULT_HOST = os.environ.get("AUTOSCRIPT_HOST", "13.202.106.11")
+DEFAULT_PORT = int(os.environ.get("AUTOSCRIPT_PORT", "7521"))
 MODELS = ("rule", "claude", "gemini")   # what invoke_tem_ai_model's build_policy accepts
 DEFAULT_MODEL = "rule"                  # the demo's model-free default
 

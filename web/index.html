@@ -146,7 +146,7 @@
   <div class="headmeta">
     <span class="chip" id="policychip">policy <strong>rule</strong> — no LLM</span>
     <span class="chip">tools <strong>13</strong></span>
-    <span class="chip">simulator <strong>13.202.106.11:7521</strong></span>
+    <span class="chip">simulator <strong id="simaddr">13.202.106.11:7521</strong></span>
     <span class="chip">runner <strong>demo_server.py</strong></span>
   </div>
 </header>
@@ -548,6 +548,7 @@
     LOOPS = d.loops;
     if (d.default_host) { $("host").value = d.default_host; }
     if (d.default_port) { $("port").value = d.default_port; }
+    $("simaddr").textContent = $("host").value + ":" + $("port").value;
     var sel = $("model");
     (d.models || ["rule"]).forEach(function (name) {
       var option = document.createElement("option");

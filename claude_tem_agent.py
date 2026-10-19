@@ -21,7 +21,7 @@ from instrument_registry import InstrumentRegistry
 from dotenv import load_dotenv
 
 # Load local environment variables
-load_dotenv()
+load_dotenv(override=True)
 
 # Load allowed tools from ToolRegistry (config/tools.yaml)
 _tool_registry = ToolRegistry()

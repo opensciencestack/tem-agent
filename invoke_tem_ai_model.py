@@ -33,7 +33,7 @@ from instrument_registry import InstrumentRegistry
 from tem_capabilities import TEMCapabilities
 from tem_agent import TEMAgent
 
-load_dotenv()
+load_dotenv(override=True)
 
 DEFAULT_GOAL = (
     "Optimize focus using image-quality feedback and leave the "

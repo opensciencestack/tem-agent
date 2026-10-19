@@ -72,7 +72,7 @@ def connect():
     port_str = os.getenv("AUTOSCRIPT_PORT", "7521")
     
     if not host:
-        raise ValueError("AUTOSCRIPT_HOST environment variable is not set! Please export it on the Mac terminal.")
+        raise ValueError("AUTOSCRIPT_HOST environment variable is not set! Set it in tem-agent/.env (see .env.example).")
         
     try:
         port = int(port_str)
