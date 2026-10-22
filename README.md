@@ -22,6 +22,15 @@ The system includes both an interactive **Web Dashboard** (`demo_server.py`) and
 - [Starting the Application](#starting-the-application)
   - [Option A: Web Dashboard (Interactive UI)](#option-a-web-dashboard-interactive-ui)
   - [Option B: Command-Line Interface (CLI)](#option-b-command-line-interface-cli)
+- [API Documentation](#api-documentation)
+  - [REST API Reference (`demo_server.py`)](#rest-api-reference-demo_serverpy)
+    - [GET `/api/loops`](#1-get-apiloops)
+    - [POST `/api/run`](#2-post-apirun)
+    - [GET `/api/state`](#3-get-apistate)
+    - [POST `/api/simcheck`](#4-post-apisimcheck)
+  - [Programmatic Python API](#programmatic-python-api)
+    - [High-Level Runner: `invoke_tem_ai_model()`](#high-level-runner-invoke_tem_ai_model)
+    - [Component Architecture (`TEMAgent` & Capabilities)](#component-architecture-temagent--capabilities)
 - [Connecting to the AutoScript Simulator](#connecting-to-the-autoscript-simulator)
   - [Network & Firewall Requirements](#network--firewall-requirements)
   - [Simulator Licensing](#simulator-licensing)
@@ -53,29 +62,30 @@ The application cleanly decouples the decision engine (Policy), execution safegu
 
 ```mermaid
 flowchart TD
-  subgraph Frontend & Entry Points
-    UI["Web UI (web/index.html)"] -->|"POST /api/run\nGET /api/state"| SRV["demo_server.py\n(HTTP Server)"]
-    CLI["invoke_tem_ai_model.py\n(CLI Runner)"]
+  subgraph frontend["Frontend & Entry Points"]
+    UI["Web UI (web/index.html)"] -->|"POST /api/run<br/>GET /api/state"| SRV["demo_server.py<br/>(HTTP Server)"]
+    CLI["invoke_tem_ai_model.py<br/>(CLI Runner)"]
   end
 
   SRV --> AG["tem_agent.py (TEMAgent Loop)"]
   CLI --> AG
 
-  subgraph Decision Layer
-    AG <-->|"get_next_action()\npost_tool_results()"| POL["Policy Layer\n(rule | claude | gemini)"]
+  subgraph decision["Decision Layer"]
+    AG -->|"get_next_action()"| POL["Policy Layer<br/>(rule / claude / gemini)"]
+    POL -->|"post_tool_results()"| AG
   end
 
-  subgraph Safety & Execution Layer
-    AG -->|"execute(tool_name, params)"| CAP["tem_capabilities.py\n(Safety Validation & Metrics)"]
-    CAP -.->|"Schema Validation"| TOOLS["config/tools.yaml\n(13 Tool Schemas)"]
-    CAP -.->|"Limits Enforcement"| LIM["config/instrument_autoscript.yaml\n(Safety Thresholds)"]
+  subgraph safety["Safety & Execution Layer"]
+    AG -->|"execute(tool_name, params)"| CAP["tem_capabilities.py<br/>(Safety Validation & Metrics)"]
+    CAP -.->|"Schema Validation"| TOOLS["config/tools.yaml<br/>(13 Tool Schemas)"]
+    CAP -.->|"Limits Enforcement"| LIM["config/instrument_autoscript.yaml<br/>(Safety Thresholds)"]
   end
 
-  subgraph Hardware Abstraction
+  subgraph hardware["Hardware Abstraction"]
     CAP -->|"Live Mode"| CONN["connectors/autoscript_connector.py"]
-    CAP -.->|"--dry-run Mode"| MOCK["tests/mock_connector.py\n(In-Memory Simulation)"]
-    CONN --> IF["autoscript_interface.py\n(AutoScript Bindings)"]
-    IF -->|"TCP Port 7521\nFramed Protocol"| SIM["AutoScript TEM Server / Simulator"]
+    CAP -.->|"--dry-run Mode"| MOCK["tests/mock_connector.py<br/>(In-Memory Simulation)"]
+    CONN --> IF["autoscript_interface.py<br/>(AutoScript Bindings)"]
+    IF -->|"TCP Port 7521<br/>Framed Protocol"| SIM["AutoScript TEM Server / Simulator"]
   end
 ```
 
@@ -278,6 +288,277 @@ python invoke_tem_ai_model.py --model claude \
 
 # Cap the maximum iterations for safety
 python invoke_tem_ai_model.py --model rule --max-iterations 30
+```
+
+---
+
+## API Documentation
+
+The TEM Agent provides two programmatic integration surfaces: an **HTTP REST API** served by `demo_server.py` and a **Python Programmatic API** for embedding the agent loop directly into scientific scripts and automation pipelines.
+
+### REST API Reference (`demo_server.py`)
+
+The local HTTP server (`demo_server.py`) exposes JSON endpoints used by the Web Dashboard and external orchestrators.
+
+* **Base URL**: `http://127.0.0.1:8765` (configurable via `--host` and `--port`)
+* **Headers**: All JSON responses include `Content-Type: application/json` and `Cache-Control: no-store`.
+
+#### 1. GET `/api/loops`
+
+Returns the supported workflow routines, default microscope host/port, supported policy backends, and execution limits.
+
+* **Method**: `GET`
+* **Query Parameters**: None
+* **Success Response (200 OK)**:
+  ```json
+  {
+    "loops": [
+      {
+        "id": "focus",
+        "title": "Focus sweep",
+        "blurb": "One defocus sweep across seven points around the current focus, each frame scored by normalized variance, then the peak restored."
+      },
+      {
+        "id": "focus2",
+        "title": "Focus sweep, two-stage",
+        "blurb": "A coarse seven-point sweep, then a finer five-point pass around the coarse peak."
+      },
+      {
+        "id": "tomography",
+        "title": "Tomography tilt series",
+        "blurb": "Tilt to each angle in turn, refocus at every angle, acquire a projection, then restore the stage to zero."
+      },
+      {
+        "id": "survey",
+        "title": "Survey",
+        "blurb": "Read the microscope state, open the column valve, unblank, select STEM, configure the detector, take one image."
+      }
+    ],
+    "default_host": "13.202.106.11",
+    "default_port": 7521,
+    "models": ["rule", "claude", "gemini"],
+    "default_model": "rule",
+    "max_iterations": 60
+  }
+  ```
+* **Example**:
+  ```bash
+  curl -s http://127.0.0.1:8765/api/loops
+  ```
+
+---
+
+#### 2. POST `/api/run`
+
+Triggers an asynchronous agent execution loop on a dedicated background thread.
+
+* **Method**: `POST`
+* **Headers**: `Content-Type: application/json`
+* **Request Body**:
+  | Field | Type | Default | Description |
+  |---|---|---|---|
+  | `loop` | `string` | `"focus"` | Workflow ID: `"focus"`, `"focus2"`, `"tomography"`, or `"survey"`. |
+  | `model` | `string` | `"rule"` | Policy engine: `"rule"`, `"claude"`, or `"gemini"`. |
+  | `dry_run` | `boolean` | `true` | If `true`, runs against `MockTEMConnector`. If `false`, connects to live AutoScript server. |
+  | `host` | `string` | `AUTOSCRIPT_HOST` | Target AutoScript server hostname or IP address. |
+  | `port` | `integer` | `AUTOSCRIPT_PORT` | Target AutoScript server TCP port (default `7521`). |
+
+* **Request Example**:
+  ```json
+  {
+    "loop": "focus2",
+    "model": "rule",
+    "dry_run": true
+  }
+  ```
+* **Success Response (200 OK)**:
+  ```json
+  {
+    "id": "b3e9a71f02c4"
+  }
+  ```
+* **Error Response (400 Bad Request)**:
+  ```json
+  {
+    "error": "unknown loop 'custom_sweep'"
+  }
+  ```
+* **Example**:
+  ```bash
+  curl -X POST http://127.0.0.1:8765/api/run \
+    -H "Content-Type: application/json" \
+    -d '{"loop": "focus", "model": "rule", "dry_run": true}'
+  ```
+
+---
+
+#### 3. GET `/api/state`
+
+Polls the real-time execution state, newly emitted log lines, parsed focus/variance points, and termination status for a given run ID.
+
+* **Method**: `GET`
+* **Query Parameters**:
+  | Parameter | Type | Required | Description |
+  |---|---|---|---|
+  | `id` | `string` | **Yes** | Run identifier returned by `POST /api/run`. |
+  | `since` | `integer` | No | Line offset for delta streaming. Omit or set to `0` for all lines. |
+
+* **Success Response (200 OK)**:
+  ```json
+  {
+    "id": "b3e9a71f02c4",
+    "loop": "focus",
+    "dry_run": true,
+    "host": "13.202.106.11",
+    "port": 7521,
+    "model": "rule",
+    "status": "done",
+    "lines": [
+      "[RulePolicy] Step 1: get_microscope_state",
+      "[Capabilities] Current defocus: 0.000 nm",
+      "[RulePolicy] -150.0 nm -> normalized variance 0.08412",
+      "TASK COMPLETE: Peak focus located and restored."
+    ],
+    "next": 18,
+    "points": [
+      { "tilt": null, "df_nm": -150.0, "score": 0.08412 },
+      { "tilt": null, "df_nm": -100.0, "score": 0.12540 }
+    ],
+    "best": {
+      "df_nm": 0.0,
+      "score": 0.28451
+    },
+    "iterations": 8,
+    "error": null,
+    "notice": null
+  }
+  ```
+  * `status`: `"running"`, `"done"`, `"stopped"`, or `"failed"`.
+  * `lines`: Array of stdout lines emitted since `since`.
+  * `next`: Total lines emitted so far; pass this as `since` on the next poll.
+  * `points`: Parsed data points extracted from policy logs (used to draw the live sharpness curve).
+  * `best`: Best observed defocus (`df_nm`) and sharpness metric (`score`).
+  * `notice`: Plain-language explanation if the AutoScript license is inactive.
+* **Error Response (404 Not Found)**:
+  ```json
+  {
+    "error": "unknown run"
+  }
+  ```
+* **Example**:
+  ```bash
+  curl -s "http://127.0.0.1:8765/api/state?id=b3e9a71f02c4&since=0"
+  ```
+
+---
+
+#### 4. POST `/api/simcheck`
+
+Health check probe that tests TCP reachability on port 7521 and verifies Thermo Fisher AutoScript license activation status by querying optical mode telemetry.
+
+* **Method**: `POST`
+* **Headers**: `Content-Type: application/json`
+* **Request Body**:
+  | Field | Type | Default | Description |
+  |---|---|---|---|
+  | `host` | `string` | `AUTOSCRIPT_HOST` | Microscope server IP or hostname. |
+  | `port` | `integer` | `AUTOSCRIPT_PORT` | AutoScript TCP port (typically `7521`). |
+
+* **Request Example**:
+  ```json
+  {
+    "host": "13.202.106.11",
+    "port": 7521
+  }
+  ```
+* **Success Response (200 OK)**:
+  ```json
+  {
+    "host": "13.202.106.11",
+    "port": 7521,
+    "tcp": true,
+    "activation": "ok",
+    "detail": "answered, optical mode 'Tem'"
+  }
+  ```
+  * `tcp`: `true` if TCP socket connection succeeded.
+  * `activation`: `"ok"` (licensed), `"refused"` (unlicensed server), or `null` (TCP unreachable).
+  * `detail`: Description or raw server exception.
+* **Example**:
+  ```bash
+  curl -X POST http://127.0.0.1:8765/api/simcheck \
+    -H "Content-Type: application/json" \
+    -d '{"host": "13.202.106.11", "port": 7521}'
+  ```
+
+---
+
+### Programmatic Python API
+
+For embedding TEM AI workflows directly into Python scripts, Jupyter notebooks, or scientific pipelines.
+
+#### High-Level Runner: `invoke_tem_ai_model()`
+
+Located in [`invoke_tem_ai_model.py`](file:///d:/OSS/oss-devsetup/tem-agent/invoke_tem_ai_model.py):
+
+```python
+from invoke_tem_ai_model import invoke_tem_ai_model
+
+# Run an autonomous autofocus sweep with the deterministic rule engine (no LLM, no API keys)
+invoke_tem_ai_model(
+    model_name="rule",
+    goal_text="focus",            # or "focus2", "tomography", "survey"
+    max_iterations=40,
+    dry_run=True                  # set False to execute against live hardware
+)
+
+# Run an LLM-driven reasoning loop with Claude or Gemini
+invoke_tem_ai_model(
+    model_name="claude",
+    goal_text="Inspect current defocus, take an image, and optimize focus to peak normalized variance.",
+    max_iterations=30,
+    dry_run=False
+)
+```
+
+**Parameters**:
+* `model_name` (*str*): Policy selector — `"rule"`, `"claude"`, or `"gemini"`.
+* `goal_text` (*str*): Workflow identifier (`"focus"`, `"focus2"`, `"tomography"`, `"survey"`) or custom natural language instructions for LLM policies.
+* `max_iterations` (*int*, default `40`): Safety iteration cap.
+* `dry_run` (*bool*, default `False`): Run with mock connector or physical hardware.
+* `tools_config` (*str*, optional): Custom path to `tools.yaml`.
+* `instrument_config` (*str*, optional): Custom path to `instrument_autoscript.yaml`.
+
+---
+
+#### Component Architecture (`TEMAgent` & Capabilities)
+
+For fine-grained lifecycle control, you can construct and execute the agent components directly:
+
+```python
+from tool_registry import ToolRegistry
+from instrument_registry import InstrumentRegistry
+from tem_capabilities import TEMCapabilities
+from tem_agent import TEMAgent
+from policies.rule_policy import RuleTEMPolicy
+from tests.mock_connector import MockTEMConnector
+
+# 1. Initialize tool schemas and safety limits
+tool_reg = ToolRegistry("config/tools.yaml")
+inst_reg = InstrumentRegistry("config/instrument_autoscript.yaml")
+
+# 2. Select hardware connector (or AutoScriptConnector for live instrument)
+connector = MockTEMConnector()
+
+# 3. Create capabilities layer with safety validation
+capabilities = TEMCapabilities(connector, inst_reg)
+
+# 4. Instantiate policy engine and agent loop
+policy = RuleTEMPolicy()
+agent = TEMAgent(policy=policy, capabilities=capabilities, registry=tool_reg)
+
+# 5. Execute goal
+agent.run_goal(goal_text="focus", max_iterations=40)
 ```
 
 ---
