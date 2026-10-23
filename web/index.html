@@ -534,8 +534,11 @@
         var b = el("strong", null, d.tcp ? "TCP reachable. " : "TCP unreachable. ");
         note.appendChild(b);
         note.appendChild(document.createTextNode(d.detail || ""));
-        setStatus(d.activation === "ok" ? "simulator ready" : (d.tcp ? "reachable, calls refused" : "unreachable"),
-                  d.activation === "ok" ? "" : "bad");
+        var text = !d.tcp ? "unreachable"
+          : d.activation === "ok" ? "simulator ready"
+          : d.activation === "no_client" ? "AutoScript client missing on this machine"
+          : "reachable, calls refused";
+        setStatus(text, d.activation === "ok" ? "" : "bad");
       })
       .catch(function (e) { setStatus("check failed: " + e.message, "bad"); });
   }

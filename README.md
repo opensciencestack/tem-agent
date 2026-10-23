@@ -32,6 +32,7 @@ The system includes both an interactive **Web Dashboard** (`demo_server.py`) and
     - [High-Level Runner: `invoke_tem_ai_model()`](#high-level-runner-invoke_tem_ai_model)
     - [Component Architecture (`TEMAgent` & Capabilities)](#component-architecture-temagent--capabilities)
 - [Connecting to the AutoScript Simulator](#connecting-to-the-autoscript-simulator)
+  - [How the Agent Talks to the Simulator](#how-the-agent-talks-to-the-simulator)
   - [Network & Firewall Requirements](#network--firewall-requirements)
   - [Simulator Licensing](#simulator-licensing)
 - [Safety Controls & Guardrails](#safety-controls--guardrails)
@@ -566,6 +567,62 @@ agent.run_goal(goal_text="focus", max_iterations=40)
 ## Connecting to the AutoScript Simulator
 
 When running against a remote or hosted AutoScript simulator (e.g. AWS EC2 Windows instance):
+
+### How the Agent Talks to the Simulator
+
+Everything between the agent and the simulator is synchronous request and response over one TCP connection. The agent has no async code, no WebSocket, no HTTP and no event subscription on this hop, and it never polls the microscope in the background. It reads state only when a policy calls `get_microscope_state`.
+
+The wire protocol is Thermo Fisher's own, implemented in the `autoscript_core` package (version 1.3.0 in `.venv`). The files to read are `autoscript_core/framed_transport.py` for the framing and `autoscript_core/orc/engines.py` for sessions and calls.
+
+#### The call path
+
+```mermaid
+sequenceDiagram
+  participant AG as TEMAgent.run_goal
+  participant CAP as TEMCapabilities
+  participant IF as autoscript_interface
+  participant CL as TemMicroscopeClient
+  participant SIM as AutoScript server :7521
+  Note over CL,SIM: connect(): TCP, then handshake<br/>SessionInquiry 0x51 → SessionOffer 0x52<br/>SessionJoinRequest 0x54 → SessionJoinResponse 0x55
+  AG->>CAP: execute("set_defocus", {...})
+  CAP->>IF: set_defocus(target)
+  IF->>CL: client.optics.optical_mode (read)
+  CL->>SIM: CALL_REQUEST 0x21
+  SIM-->>CL: CALL_RESULT 0x22 ('Stem')
+  IF->>CL: ...stem.objective.defocus = target
+  CL->>SIM: CALL_REQUEST 0x21
+  SIM-->>CL: CALL_RESULT 0x22, or CALL_ERROR 0x23
+  CL-->>IF: returns, or raises the server error
+  IF-->>CAP: returns, or raises NotImplementedError
+  CAP-->>AG: (result dict, is_error)
+  loop every 250 ms, on a daemon thread
+    CL->>SIM: KEEP_ALIVE 0x99
+  end
+```
+
+1. **Connecting.** `invoke_tem_ai_model()` calls `connector.connect()` once before the loop starts. That opens a TCP socket to `AUTOSCRIPT_HOST:AUTOSCRIPT_PORT` with `TCP_NODELAY` and runs the four-message session handshake. The connection lives in the module-level `client` in `autoscript_interface.py`, so a process has one connection at a time.
+2. **Every attribute access is a round trip.** The SDK turns each property read, property write and method call (`client.optics.optical_mode`, `client.specimen.stage.relative_move(...)`) into one `CALL_REQUEST` carrying the session id and a call id. The calling thread then blocks on the socket until a `CALL_RESULT` or `CALL_ERROR` with the same call id arrives. Responses with any other call id are dropped. One `get_microscope_state` costs eight round trips: stage position, optical mode, defocus, projector mode, magnification, voltage, column valve state and blanker state.
+3. **One call at a time.** The SDK holds a lock for the whole call and its docs say the Python client is not built for concurrent calls. The agent loop is single-threaded anyway: the policy picks a tool, `TEMCapabilities.execute()` runs it to completion, and the result goes back to the policy before the next tool is chosen.
+4. **No timeout on a call.** The SDK sets no socket timeout. A long call (`acquire_stem_image`, `run_stem_auto_focus`) holds the agent until the server answers, and a server that stops answering without closing the connection holds the run forever. The demo server has no timeout around a run either.
+5. **Keep-alive.** After the handshake the SDK starts a daemon thread that sends a `KEEP_ALIVE` message every 250 ms. It only notices and logs a dead link. Reconnecting is left to the next call.
+6. **Reconnecting.** When a call hits a socket error, the SDK prints `Client lost connection to server`, reconnects and redoes the handshake. It tries 10 times, waiting 0.5 s, 0.5 s, 2 s, 2 s and then 5 s between the rest, about 30 s in all. On success it sends the same call again. If every attempt fails it raises `CallInterruptException: Call was interrupted because connection to server has been lost and could not be recovered.` These prints land in the run's stdout, so they show up in the dashboard log.
+7. **Disconnecting.** The `finally` block in `invoke_tem_ai_model()` blanks the beam, closes the column valve and disconnects, whether the loop finished, hit the iteration cap or raised.
+
+The resend in step 6 can run a call twice: if the server carried out the first request and the link dropped before the result came back, the server sees it again. For a read or an absolute set (`set_defocus`) that is harmless. For `move_stage`, which uses `relative_move`, the stage would move by the step twice.
+
+#### What happens to a response
+
+* `autoscript_interface.py` turns SDK values into plain Python: stage tilt from radians to degrees, voltage from volts to kV, the column valve enum to a bool. Some reads try a second SDK path when the first raises (`optics.focusing.*.defocus`, then the older `optics.defocus`).
+* `acquire_image` gets an `AdornedImage` back in one call. The interface scores it on the client as normalized variance (variance over mean squared of the pixel data), reads the pixel size from `metadata.binary_result.pixel_size` (falling back to 1 nm), and wraps both in `AutoScriptImageAdapter`.
+* A `CALL_ERROR` from the server comes out of the SDK as a Python exception. The interface re-raises it as `NotImplementedError` with the server's message, and `TEMCapabilities` turns that into `({"error": "..."}, True)`. The loop does not stop on an error: it hands the error to the policy as a tool result, and the policy decides what to do next. An unlicensed server answers every call with `ApplicationServerException: AutoScript TEM product is not activated properly.`, which reaches the policy the same way.
+
+#### Where the polling is
+
+The only polling in the system is between the browser and `demo_server.py`. `POST /api/run` starts the agent on a daemon thread and returns a run id at once. The page then calls `GET /api/state?id=...&since=N` every 500 ms and gets the stdout lines printed since line `N`. Runs are serialized by `RUN_LOCK`, because the server captures stdout with `contextlib.redirect_stdout`, which is process-wide. The host and port from the page reach the connector through `os.environ` for the length of the run.
+
+`POST /api/simcheck` opens its own short connection: a plain TCP connect with a 3 s timeout, then a separate `TemMicroscopeClient` that reads `optics.optical_mode` once and disconnects.
+
+In dry-run mode `MockTEMConnector` stands in for the connector inside the same process, and no socket is opened.
 
 ### Network & Firewall Requirements
 

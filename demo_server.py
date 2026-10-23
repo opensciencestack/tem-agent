@@ -236,6 +236,13 @@ def sim_check(host, port):
 
     try:
         from autoscript_tem_microscope_client import TemMicroscopeClient
+    except ImportError:
+        result["activation"] = "no_client"
+        result["detail"] = (f"The AutoScript TEM client is not installed in {sys.executable}, so no call was sent. "
+                            r"Start the server with the tem-agent virtual environment's Python instead (.venv\Scripts\python.exe demo_server.py).")
+        return result
+
+    try:
         scope = TemMicroscopeClient()
         scope.connect(host, int(port))
         try:
@@ -336,6 +343,11 @@ def main():
     httpd = ThreadingHTTPServer((args.host, args.port), Handler)
     print(f"TEM Agent demo UI on http://{args.host}:{args.port}")
     print("loops: " + ", ".join(entry["id"] for entry in LOOPS))
+    try:
+        import autoscript_tem_microscope_client  # noqa: F401
+    except ImportError:
+        print(f"Live runs and the simulator check will fail: this Python ({sys.executable}) "
+              "has no AutoScript client. Dry runs still work.")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
