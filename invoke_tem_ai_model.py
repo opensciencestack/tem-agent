@@ -64,7 +64,8 @@ def invoke_tem_ai_model(
     max_iterations: int = 40,
     dry_run: bool = False,
     tools_config: str = None,
-    instrument_config: str = None
+    instrument_config: str = None,
+    on_image=None
 ):
     """
     Main entry point for running the TEM AI Agent.
@@ -76,6 +77,8 @@ def invoke_tem_ai_model(
         dry_run:           If True, run policy-only without connecting to hardware.
         tools_config:      Optional path to a custom tools.yaml.
         instrument_config: Optional path to a custom instrument yaml.
+        on_image:          Optional callable(pixels, defocus_m, normalized_variance)
+                           called with every acquired frame.
     """
     print("=" * 80)
     print(f"TEM AI Agent  |  Model: {model_name.upper()}  |  Dry-run: {dry_run}")
@@ -100,7 +103,7 @@ def invoke_tem_ai_model(
         connector = AutoScriptConnector()
 
     # Build capabilities and agent
-    capabilities = TEMCapabilities(connector, instrument)
+    capabilities = TEMCapabilities(connector, instrument, on_image=on_image)
     agent = TEMAgent(policy, capabilities, registry)
 
     # Connect to hardware

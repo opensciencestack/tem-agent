@@ -24,14 +24,17 @@ class TEMCapabilities:
     and an InstrumentRegistry for safety limits.
     """
 
-    def __init__(self, connector, instrument_registry):
+    def __init__(self, connector, instrument_registry, on_image=None):
         """
         Args:
             connector: An object with connect/disconnect and all TEM action methods.
             instrument_registry: An InstrumentRegistry instance providing safety limits.
+            on_image: Optional callable(pixels, defocus_m, normalized_variance), called
+                      with every acquired frame.
         """
         self.connector = connector
         self.instrument = instrument_registry
+        self.on_image = on_image
 
         # Internal focus tracking state — reset per goal
         self.best_variance: float = -1.0
@@ -168,6 +171,13 @@ class TEMCapabilities:
                 self.best_defocus = current_df
                 print(f"  *** NEW BEST OBSERVED FOCUS state recorded: "
                       f"{self.best_defocus*1e9:.1f}nm with Normalized Variance {self.best_variance:.6f} ***")
+
+            if self.on_image:
+                # A frame the viewer cannot show must not fail the acquisition.
+                try:
+                    self.on_image(arr, current_df, norm_var)
+                except Exception as e:
+                    print(f"  [Image] on_image failed: {e}")
 
             return {
                 "mean_intensity": mean,

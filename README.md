@@ -431,7 +431,8 @@ Polls the real-time execution state, newly emitted log lines, parsed focus/varia
     },
     "iterations": 8,
     "error": null,
-    "notice": null
+    "notice": null,
+    "frames": [{"df_nm": -150.0, "score": 0.08412}]
   }
   ```
   * `status`: `"running"`, `"done"`, `"stopped"`, or `"failed"`.
@@ -440,6 +441,7 @@ Polls the real-time execution state, newly emitted log lines, parsed focus/varia
   * `points`: Parsed data points extracted from policy logs (used to draw the live sharpness curve).
   * `best`: Best observed defocus (`df_nm`) and sharpness metric (`score`).
   * `notice`: Plain-language explanation if the AutoScript license is inactive.
+  * `frames`: One entry per acquired image, in order, with the defocus and normalized variance it was taken at. Fetch the pixels of entry `n` from `GET /api/frame?id=<run id>&n=<n>`, which returns a 256 px grayscale PNG stretched between the frame's 1st and 99th percentiles (404 for an unknown run or frame). Frames stay in memory for the life of the server.
 * **Error Response (404 Not Found)**:
   ```json
   {

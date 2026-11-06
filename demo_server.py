@@ -12,7 +12,8 @@ actually printed.
     python demo_server.py                 # http://127.0.0.1:8765
     python demo_server.py --port 9000 --host 0.0.0.0
 
-Standard library only. The one endpoint that touches the network is
+Standard library plus numpy, which the agent already needs. Every acquired
+frame is kept on its run as a PNG and served from /api/frame. The one endpoint that touches the network is
 /api/simcheck, which probes the AutoScript simulator the page is pointed at.
 """
 
@@ -23,13 +24,17 @@ import json
 import os
 import re
 import socket
+import struct
 import sys
 import threading
 import traceback
 import uuid
+import zlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
+
+import numpy as np
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
@@ -98,6 +103,16 @@ class Run:
         self.iterations = None
         self.error = None
         self.notice = None
+        self.frames = []
+
+    def add_frame(self, pixels, defocus_m, score):
+        png = to_png(pixels)
+        with self.lock:
+            self.frames.append({"png": png, "df_nm": defocus_m * 1e9, "score": score})
+
+    def frame_png(self, n):
+        with self.lock:
+            return self.frames[n]["png"] if 0 <= n < len(self.frames) else None
 
     def add_line(self, line):
         with self.lock:
@@ -132,12 +147,36 @@ class Run:
                 "next": len(self.lines), "points": list(self.points),
                 "best": self.best, "iterations": self.iterations,
                 "error": self.error, "notice": self.notice,
+                "frames": [{"df_nm": f["df_nm"], "score": f["score"]} for f in self.frames],
             }
 
     def fail(self, text):
         with self.lock:
             self.status = "failed"
             self.error = text
+
+
+def to_png(pixels, size=256):
+    """Grayscale 8-bit PNG of a frame, shrunk to about `size` px and stretched
+    between its 1st and 99th percentiles so detector counts of any range show."""
+    a = np.asarray(pixels, dtype=float)
+    if a.ndim == 3:
+        a = a.mean(axis=2)
+    step = max(1, max(a.shape) // size)
+    a = a[::step, ::step]
+    lo, hi = np.percentile(a, (1, 99))
+    a = ((a - lo) / ((hi - lo) or 1.0) * 255).clip(0, 255).astype(np.uint8)
+    h, w = a.shape
+    raw = b"".join(b"\x00" + row.tobytes() for row in a)
+
+    def chunk(tag, data):
+        return (struct.pack(">I", len(data)) + tag + data
+                + struct.pack(">I", zlib.crc32(tag + data)))
+
+    return (b"\x89PNG\r\n\x1a\n"
+            + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 0, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(raw))
+            + chunk(b"IEND", b""))
 
 
 class RunBuffer(io.TextIOBase):
@@ -199,6 +238,7 @@ def execute(run):
                 model_name=run.model, goal_text=run.loop,
                 max_iterations=MAX_ITERATIONS, dry_run=run.dry_run,
                 tools_config=None, instrument_config=None,
+                on_image=run.add_frame,
             )
         buffer.flush()
         if run.status == "running":
@@ -299,6 +339,17 @@ class Handler(BaseHTTPRequestHandler):
             if run is None:
                 return self._send(404, {"error": "unknown run"})
             return self._send(200, run.snapshot(since))
+        if path == "/api/frame":
+            query = parse_qs(urlparse(self.path).query)
+            run = RUNS.get((query.get("id") or [""])[0])
+            try:
+                n = int((query.get("n") or [""])[0])
+            except ValueError:
+                n = -1
+            png = run.frame_png(n) if run else None
+            if png is None:
+                return self._send(404, {"error": "unknown frame"})
+            return self._send(200, png, "image/png")
         return self._send(404, {"error": "not found"})
 
     def do_POST(self):
