@@ -149,9 +149,9 @@ tem-agent/
 
 ## Prerequisites
 
-* **Python 3.10+** (Python 3.10 to 3.12 recommended)
+* **Python 3.11+**. `autoscript_tem_microscope_client` 1.18.0 declares `Requires-Python >=3.11`.
 * **AutoScript Client SDK** (Required only for live connections to the microscope/simulator):
-  Installed via Thermo Fisher wheel `autoscript_tem_microscope_client-*.whl`
+  Installed from the Thermo Fisher wheels through `requirements-autoscript.txt`, see step 2.
 * *(Optional)* **API Keys**:
   * `ANTHROPIC_API_KEY` for Claude (`claude-sonnet-4-6` or custom)
   * `GEMINI_API_KEY` for Gemini (`gemini-2.0-flash` or custom)
@@ -185,11 +185,15 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-> [!NOTE]
-> If connecting to a live simulator or real TEM instrument, ensure `autoscript_tem_microscope_client` is installed in this virtual environment. Verify with:
-> ```bash
-> python -c "import autoscript_tem_microscope_client; print('AutoScript SDK OK')"
-> ```
+For live runs against a simulator or a real TEM, also install the AutoScript client. Its wheels are proprietary and are not in this repo: copy the `.whl` files from `PythonPackages/` on the AutoScript TEM ISO into a folder, point `AUTOSCRIPT_WHEEL_DIR` at it, then install and check the import. A deploy runs the same commands.
+
+```bash
+export AUTOSCRIPT_WHEEL_DIR=/opt/vendor/autoscript-tem/1.18.0
+pip install -r requirements.txt -r requirements-autoscript.txt
+python -c "import autoscript_tem_microscope_client; print('AutoScript SDK OK')"
+```
+
+The client version pinned in `requirements-autoscript.txt` must match the AutoScript server. A client newer than the server fails at connect with `Authentication failed. Cannot find a method with the signature of TemMicroscope.Service.AutoScript.Client.Authenticate(...)`.
 
 ### 3. Configure Environment Variables
 

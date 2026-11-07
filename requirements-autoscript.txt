@@ -1,0 +1,5 @@
+# Live runs only. The Thermo Fisher wheels are proprietary and not in this repo:
+# AUTOSCRIPT_WHEEL_DIR is the folder holding the wheels from PythonPackages/ on
+# the AutoScript TEM ISO. The version must match the AutoScript server it talks to.
+--find-links ${AUTOSCRIPT_WHEEL_DIR}
+autoscript_tem_microscope_client==1.18.0
